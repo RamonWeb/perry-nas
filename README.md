@@ -105,7 +105,7 @@ sudo apt autoremove -y
 ### Schritt 2: Script herunterladen
 
 ```bash
-wget https://raw.githubusercontent.com/dein-username/perry-nas/main/perry-nas-setup.sh
+wget https://raw.githubusercontent.com/RamonWeb/perry-nas/main/perry-nas-setup.sh
 chmod +x perry-nas-setup.sh
 ```
 
