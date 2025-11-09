@@ -68,7 +68,7 @@ sudo raspi-config
 
 ```bash
 # Repository klonen
-git clone [https://github.com/RamonWeb/perry-nas.git]
+git clone https://github.com/RamonWeb/perry-nas.git
 cd perry-nas
 
 # Perry-NAS Setup ausführen
