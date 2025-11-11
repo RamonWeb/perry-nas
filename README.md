@@ -386,5 +386,5 @@ Bei Problemen mit Perry-NAS:
 
 ---
 
-*Letzte Aktualisierung: November 2024 | Compatible with Raspberry Pi 5 | HomeRacker Gehäuse | PCIe SATA Adapter*perry-nas
+*Letzte Aktualisierung: November 2025 | Compatible with Raspberry Pi 5 | HomeRacker Gehäuse | PCIe SATA Adapter*perry-nas
  
