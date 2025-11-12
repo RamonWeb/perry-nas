@@ -1,426 +1,240 @@
 #!/bin/bash
-# Perry-NAS Komplettsetup für Debian Trixie
+# perry-nas-multi-ssh-setup.sh
 
 set -e
 
-# Farbdefinitionen
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
 NC='\033[0m'
 
-log() { echo -e "${PURPLE}[PERRY-NAS]${NC} $1"; }
-success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log() { echo -e "${GREEN}[SSH-SETUP]${NC} $1"; }
+info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Root-Check
+# Root check
 if [ "$EUID" -ne 0 ]; then
     error "Bitte als root ausführen: sudo $0"
     exit 1
 fi
 
 echo ""
-echo -e "${PURPLE}#############################################${NC}"
-echo -e "${PURPLE}#         PERRY-NAS KOMPLETTSETUP          #${NC}"
-echo -e "${PURPLE}#         Für Debian Trixie                #${NC}"
-echo -e "${PURPLE}#############################################${NC}"
-echo ""
+echo -e "${GREEN}Perry-NAS Multi-Client SSH Setup${NC}"
+echo "======================================"
 
 # --------------------------
-# System-Update
+# SSH Server Konfiguration
 # --------------------------
-log "Aktualisiere System..."
-apt update
-apt upgrade -y
-success "System aktualisiert"
+log "Konfiguriere SSH Server für Multi-Client Zugriff..."
 
-# --------------------------
-# Basis-Pakete installieren
-# --------------------------
-log "Installiere Basis-Pakete..."
-apt install -y \
-    nginx \
-    samba \
-    samba-common-bin \
-    curl \
-    wget \
-    htop \
-    tree \
-    git \
-    build-essential \
-    ufw \
-    openssh-server \
-    python3 \
-    python3-pip \
-    jq \
-    smartmontools \
-    rsync \
-    ca-certificates
+SSH_CONFIG="/etc/ssh/sshd_config"
+BACKUP_FILE="$SSH_CONFIG.backup.$(date +%Y%m%d_%H%M%S)"
 
-success "Basis-Pakete installiert"
+# Backup der originalen Config
+cp $SSH_CONFIG $BACKUP_FILE
+log "Backup erstellt: $BACKUP_FILE"
 
-# --------------------------
-# Benutzer einrichten
-# --------------------------
-log "Richte Benutzer ein..."
+# SSH Konfiguration für Multi-Client
+cat > /tmp/sshd_config_update << 'EOF'
+# Perry-NAS Multi-Client SSH Configuration
+Protocol 2
+Port 22
+AddressFamily inet
 
-# Haupt-Benutzer
-if ! id "ramon" &>/dev/null; then
-    useradd -m -s /bin/bash ramon
-    usermod -aG sudo ramon
-    success "Benutzer 'ramon' erstellt"
-fi
+# Security Settings
+PermitRootLogin no
+StrictModes yes
+MaxAuthTries 3
+MaxSessions 10
+ClientAliveInterval 300
+ClientAliveCountMax 2
+LoginGraceTime 60
 
-# Samba-Benutzer
-if ! id "nasuser" &>/dev/null; then
-    useradd -m -s /bin/bash nasuser
-    echo "nasuser:nasuser123" | chpasswd
-    success "Samba-Benutzer 'nasuser' erstellt"
-fi
+# Authentication
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys .ssh/authorized_keys2
+HostbasedAuthentication no
+IgnoreUserKnownHosts no
+IgnoreRhosts yes
 
-# --------------------------
-# Samba konfigurieren
-# --------------------------
-log "Konfiguriere Samba..."
+# Password Authentication (nur als Fallback - später deaktivieren)
+PasswordAuthentication yes
+ChallengeResponseAuthentication no
+KerberosAuthentication no
+GSSAPIAuthentication no
 
-# Samba Konfiguration
-cat > /etc/samba/smb.conf << 'EOF'
-[global]
-   workgroup = WORKGROUP
-   server string = Perry-NAS
-   security = user
-   map to guest = bad user
-   dns proxy = no
+# Users and Access
+AllowUsers ramon
+DenyUsers root
 
-# Logs
-   log file = /var/log/samba/log.%m
-   max log size = 1000
-   logging = file
-   panic action = /usr/share/samba/panic-action %d
+# Crypto Settings
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
 
-# Performance
-   socket options = TCP_NODELAY SO_RCVBUF=65536 SO_SNDBUF=65536
-   use sendfile = yes
-
-# Shares
-[public]
-   path = /mnt/perry-nas/public
-   browseable = yes
-   read only = no
-   guest ok = yes
-   create mask = 0777
-   directory mask = 0777
-
-[home]
-   path = /mnt/perry-nas/home
-   browseable = yes
-   read only = no
-   valid users = nasuser
-   create mask = 0770
-   directory mask = 0770
+# Other Settings
+X11Forwarding no
+PrintMotd no
+PrintLastLog yes
+TCPKeepAlive yes
+UsePAM yes
+AllowTcpForwarding no
+PermitTunnel no
+AllowAgentForwarding no
 EOF
 
-# Samba-Benutzer einrichten
-(echo "nasuser123"; echo "nasuser123") | smbpasswd -a -s nasuser
+# Konfiguration anwenden
+cat /tmp/sshd_config_update >> $SSH_CONFIG
+rm /tmp/sshd_config_update
 
-success "Samba konfiguriert"
-
-# --------------------------
-# Dateisystem einrichten
-# --------------------------
-log "Richte Dateisystem ein..."
-
-# Erstelle Mount-Point
-mkdir -p /mnt/perry-nas
-mkdir -p /mnt/perry-nas/{public,home,backups}
-
-# Setze Berechtigungen
-chown -R nasuser:nasuser /mnt/perry-nas/home
-chmod -R 0777 /mnt/perry-nas/public
-chmod -R 0770 /mnt/perry-nas/home
-
-success "Dateisystem eingerichtet"
+# SSH Directory für Benutzer vorbereiten
+log "Richte SSH Verzeichnis ein..."
+sudo -u ramon mkdir -p /home/ramon/.ssh
+touch /home/ramon/.ssh/authorized_keys
+chmod 700 /home/ramon/.ssh
+chmod 600 /home/ramon/.ssh/authorized_keys
+chown -R ramon:ramon /home/ramon/.ssh
 
 # --------------------------
-# Nginx konfigurieren
+# Management Scripts erstellen
 # --------------------------
-log "Konfiguriere Nginx..."
+log "Erstelle Management Scripts..."
 
-# Deaktiviere default site
-rm -f /etc/nginx/sites-enabled/default
-
-# Perry-NAS Web-Konfiguration
-cat > /etc/nginx/sites-available/perry-nas << 'EOF'
-server {
-    listen 80;
-    listen [::]:80;
-    
-    server_name _;
-    
-    root /var/www/html;
-    index index.html index.htm;
-    
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "no-referrer-when-downgrade" always;
-    
-    # Main site
-    location / {
-        try_files $uri $uri/ =404;
-    }
-    
-    # API endpoints
-    location /api/ {
-        alias /var/www/html/api/;
-        include fastcgi_params;
-        fastcgi_pass unix:/var/run/fcgiwrap.socket;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }
-    
-    # Block access to sensitive files
-    location ~ /\. {
-        deny all;
-    }
-    
-    location ~ /(config|backups) {
-        deny all;
-    }
-}
-EOF
-
-# Aktiviere Site
-ln -sf /etc/nginx/sites-available/perry-nas /etc/nginx/sites-enabled/
-
-success "Nginx konfiguriert"
-
-# --------------------------
-# CGI für API einrichten
-# --------------------------
-log "Richte CGI für API ein..."
-
-# Installiere fcgiwrap für CGI-Support
-apt install -y fcgiwrap
-
-# Erstelle API-Verzeichnis
-mkdir -p /var/www/html/api
-chown -R www-data:www-data /var/www/html
-chmod 755 /var/www/html/api
-
-success "CGI eingerichtet"
-
-# --------------------------
-# System-Scripts erstellen
-# --------------------------
-log "Erstelle System-Scripts..."
-
-# System-Info Script
-cat > /usr/local/bin/nas-system-info << 'EOF'
+# Script zum Hinzufügen von SSH Keys
+cat > /usr/local/bin/nas-add-ssh-key << 'EOF'
 #!/bin/bash
-case "$1" in
-    "status")
-        cat << STATUS
-{
-    "hostname": "$(hostname)",
-    "uptime": "$(uptime -p | sed 's/up //')",
-    "load": "$(cat /proc/loadavg | awk '{print $1\", \"$2\", \"$3}')",
-    "memory": "$(free -h | grep Mem | awk '{print $3 \"/\" $2}')",
-    "storage": "$(df -h /mnt/perry-nas 2>/dev/null | tail -1 | awk '{print $3 \"/\" $2 \" (\" $5 \")\"}' || echo 'N/A')",
-    "temperature": "$(vcgencmd measure_temp 2>/dev/null | cut -d= -f2 || echo 'N/A')",
-    "time": "$(date '+%Y-%m-%d %H:%M:%S')"
-}
-STATUS
-        ;;
-    "services")
-        echo "{\"smbd\": \"$(systemctl is-active smbd 2>/dev/null || echo 'inactive')\", \"nginx\": \"$(systemctl is-active nginx)\"}"
-        ;;
-    "updates")
-        apt update >/dev/null 2>&1
-        UPDATES=$(apt list --upgradable 2>/dev/null | grep -c upgradable)
-        echo $UPDATES
-        ;;
-    *)
-        echo "{\"error\": \"Unknown command\"}"
-        ;;
-esac
-EOF
 
-# System-Action Script
-cat > /usr/local/bin/nas-system-action << 'EOF'
-#!/bin/bash
-ACTION=$1
-
-case $ACTION in
-    "restart-services")
-        systemctl restart smbd nginx
-        echo "Dienste neu gestartet"
-        ;;
-    "check-updates")
-        apt update
-        UPDATES=$(apt list --upgradable 2>/dev/null | grep -c upgradable)
-        echo "Verfügbare Updates: $UPDATES"
-        ;;
-    "safe-reboot")
-        echo "System wird in 1 Minute neu gestartet..."
-        shutdown -r +1
-        ;;
-    "safe-shutdown")
-        echo "System wird in 1 Minute heruntergefahren..."
-        shutdown -h +1
-        ;;
-    "test-samba")
-        smbstatus && echo "Samba läuft korrekt"
-        ;;
-    "test-web")
-        curl -s http://localhost > /dev/null && echo "Webserver läuft korrekt"
-        ;;
-    *)
-        echo "Unbekannte Aktion: $ACTION"
-        exit 1
-        ;;
-esac
-EOF
-
-# Backup Script
-cat > /usr/local/bin/nas-backup << 'EOF'
-#!/bin/bash
-BACKUP_DIR="/mnt/perry-nas/backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/nas-backup-$DATE.tar.gz"
-LOG_FILE="/var/log/nas-backup.log"
-
-echo "$(date): Starting backup" >> $LOG_FILE
-
-mkdir -p $BACKUP_DIR
-
-echo "Starte Backup: $BACKUP_FILE"
-
-# Wichtige Konfigurationsdateien sichern
-tar -czf $BACKUP_FILE \
-    /etc/samba/smb.conf \
-    /etc/nginx/sites-available/perry-nas \
-    /etc/fstab \
-    /etc/hostname \
-    /etc/hosts \
-    /usr/local/bin/nas-* 2>/dev/null
-
-if [ $? -eq 0 ]; then
-    SIZE=$(du -h $BACKUP_FILE | cut -f1)
-    echo "Backup erfolgreich: $BACKUP_FILE ($SIZE)"
-    echo "$(date): Backup successful - $BACKUP_FILE ($SIZE)" >> $LOG_FILE
-    
-    # Alte Backups löschen (älter als 7 Tage)
-    find $BACKUP_DIR -name "nas-backup-*.tar.gz" -mtime +7 -delete
-else
-    echo "Backup fehlgeschlagen"
-    echo "$(date): Backup failed" >> $LOG_FILE
+if [ $# -eq 0 ]; then
+    echo "Verwendung: nas-add-ssh-key 'ssh-public-key'"
+    echo "          nas-add-ssh-key -f keyfile.pub"
     exit 1
 fi
+
+KEY="$1"
+KEY_FILE="/home/ramon/.ssh/authorized_keys"
+BACKUP_FILE="${KEY_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+
+# Backup erstellen
+cp $KEY_FILE $BACKUP_FILE
+
+if [ "$KEY" = "-f" ] && [ -n "$2" ]; then
+    # Key aus Datei hinzufügen
+    if [ -f "$2" ]; then
+        cat "$2" >> $KEY_FILE
+        echo "✅ Key aus Datei $2 hinzugefügt"
+        echo "📋 Backup: $BACKUP_FILE"
+    else
+        echo "❌ Datei $2 nicht gefunden"
+        exit 1
+    fi
+else
+    # Key direkt hinzufügen
+    echo "$KEY" >> $KEY_FILE
+    echo "✅ Key hinzugefügt"
+    echo "📋 Backup: $BACKUP_FILE"
+fi
+
+# Duplikate entfernen
+sort $KEY_FILE | uniq > ${KEY_FILE}.tmp
+mv ${KEY_FILE}.tmp $KEY_FILE
+
+# Berechtigungen setzen
+chmod 600 $KEY_FILE
+chown ramon:ramon $KEY_FILE
+
+echo "🔑 Aktuelle Keys:"
+wc -l $KEY_FILE
+EOF
+
+# Script zum Entfernen von SSH Keys
+cat > /usr/local/bin/nas-remove-ssh-key << 'EOF'
+#!/bin/bash
+
+KEY_FILE="/home/ramon/.ssh/authorized_keys"
+BACKUP_FILE="${KEY_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+
+if [ $# -eq 0 ]; then
+    echo "Verwendung: nas-remove-ssh-key 'key-comment'"
+    echo "          nas-remove-ssh-key --list"
+    exit 1
+fi
+
+if [ "$1" = "--list" ]; then
+    echo "🔑 Gespeicherte SSH Keys:"
+    nl $KEY_FILE
+    exit 0
+fi
+
+PATTERN="$1"
+
+# Backup erstellen
+cp $KEY_FILE $BACKUP_FILE
+
+# Key entfernen
+grep -v "$PATTERN" $KEY_FILE > ${KEY_FILE}.tmp
+mv ${KEY_FILE}.tmp $KEY_FILE
+
+# Berechtigungen setzen
+chmod 600 $KEY_FILE
+chown ramon:ramon $KEY_FILE
+
+echo "✅ Keys mit Pattern '$PATTERN' entfernt"
+echo "📋 Backup: $BACKUP_FILE"
+echo "🔑 Verbleibende Keys:"
+wc -l $KEY_FILE
+EOF
+
+# Script zum Anzeigen der SSH Konfiguration
+cat > /usr/local/bin/nas-ssh-status << 'EOF'
+#!/bin/bash
+
+echo "🔐 Perry-NAS SSH Status"
+echo "======================"
+
+echo ""
+echo "📡 SSH Service Status:"
+systemctl is-active ssh
+
+echo ""
+echo "🔑 Aktive SSH Keys:"
+KEY_FILE="/home/ramon/.ssh/authorized_keys"
+if [ -f "$KEY_FILE" ]; then
+    COUNT=$(wc -l < "$KEY_FILE")
+    echo "Anzahl gespeicherter Keys: $COUNT"
+    echo ""
+    echo "📋 Key Kommentare:"
+    grep -o ' [^ ]*@[^ ]*' "$KEY_FILE" | sort | uniq | nl
+else
+    echo "❌ Keine SSH Keys konfiguriert"
+fi
+
+echo ""
+echo "🌐 Verbindungen:"
+netstat -tln | grep :22
+
+echo ""
+echo "📊 Letzte Login Versuche:"
+tail -10 /var/log/auth.log | grep sshd
 EOF
 
 # Scripts ausführbar machen
-chmod +x /usr/local/bin/nas-*
-success "System-Scripts erstellt"
+chmod +x /usr/local/bin/nas-*-ssh-*
+chown root:root /usr/local/bin/nas-*-ssh-*
 
 # --------------------------
-# API-Endpoints erstellen
+# Web-Interface für SSH Management
 # --------------------------
-log "Erstelle API-Endpoints..."
+log "Erstelle Web-Interface für SSH Management..."
 
-# System-Info API
-cat > /var/www/html/api/system-info << 'EOF'
-#!/bin/bash
-echo "Content-type: application/json"
-echo ""
-
-# Query-String parsen
-if [ "$REQUEST_METHOD" = "GET" ]; then
-    ACTION=$(echo "$QUERY_STRING" | sed -n 's/.*action=\([^&]*\).*/\1/p')
-else
-    read -n $CONTENT_LENGTH POST_DATA
-    ACTION=$(echo "$POST_DATA" | sed -n 's/.*action=\([^&]*\).*/\1/p')
-fi
-
-case "$ACTION" in
-    "status")
-        /usr/local/bin/nas-system-info status
-        ;;
-    "services")
-        /usr/local/bin/nas-system-info services
-        ;;
-    "updates")
-        /usr/local/bin/nas-system-info updates
-        ;;
-    *)
-        echo '{"error": "Invalid action"}'
-        ;;
-esac
-EOF
-
-# System-Action API
-cat > /var/www/html/api/system-action << 'EOF'
-#!/bin/bash
-echo "Content-type: text/plain"
-echo ""
-
-# Query-String parsen
-if [ "$REQUEST_METHOD" = "GET" ]; then
-    ACTION=$(echo "$QUERY_STRING" | sed -n 's/.*action=\([^&]*\).*/\1/p')
-else
-    read -n $CONTENT_LENGTH POST_DATA
-    ACTION=$(echo "$POST_DATA" | sed -n 's/.*action=\([^&]*\).*/\1/p')
-fi
-
-# Log-Aktion
-echo "$(date): Action $ACTION from $REMOTE_ADDR" >> /var/log/nas-admin.log
-
-# Nur sichere Aktionen erlauben
-case "$ACTION" in
-    "restart-services"|"check-updates"|"safe-reboot"|"safe-shutdown"|"test-samba"|"test-web")
-        /usr/local/bin/nas-system-action "$ACTION"
-        ;;
-    *)
-        echo "Unauthorized action: $ACTION"
-        exit 1
-        ;;
-esac
-EOF
-
-# Backup API
-cat > /var/www/html/api/backup << 'EOF'
-#!/bin/bash
-echo "Content-type: text/plain"
-echo ""
-
-# Log-Aktion
-echo "$(date): Backup started from $REMOTE_ADDR" >> /var/log/nas-admin.log
-
-/usr/local/bin/nas-backup
-EOF
-
-# API-Scripts ausführbar machen
-chmod +x /var/www/html/api/*
-chown www-data:www-data /var/www/html/api/*
-
-success "API-Endpoints erstellt"
-
-# --------------------------
-# Web-Interface erstellen
-# --------------------------
-log "Erstelle Web-Interface..."
-
-cat > /var/www/html/index.html << 'EOF'
+cat > /var/www/html/ssh-management.html << 'EOF'
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Perry-NAS Dashboard</title>
+    <title>SSH Key Management - Perry-NAS</title>
     <style>
         * {
             margin: 0;
@@ -449,7 +263,7 @@ cat > /var/www/html/index.html << 'EOF'
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
         }
         
@@ -465,18 +279,6 @@ cat > /var/www/html/index.html << 'EOF'
             font-weight: 700;
         }
         
-        .header p {
-            opacity: 0.9;
-            font-size: 1.1rem;
-        }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-        
         .card {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
@@ -484,40 +286,7 @@ cat > /var/www/html/index.html << 'EOF'
             padding: 24px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .card h2 {
-            color: var(--primary-dark);
-            margin-bottom: 16px;
-            font-size: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .stat-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-        
-        .stat-item {
-            background: var(--light);
-            padding: 12px;
-            border-radius: 8px;
-            border-left: 4px solid var(--primary);
-        }
-        
-        .stat-value {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--primary-dark);
-        }
-        
-        .stat-label {
-            font-size: 0.875rem;
-            color: var(--secondary);
-            margin-top: 4px;
+            margin-bottom: 20px;
         }
         
         .btn {
@@ -539,79 +308,54 @@ cat > /var/www/html/index.html << 'EOF'
             color: white;
         }
         
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-        }
-        
-        .btn-warning {
-            background: var(--warning);
-            color: white;
-        }
-        
         .btn-danger {
             background: var(--danger);
             color: white;
         }
         
-        .btn-group {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+        .form-group {
+            margin-bottom: 16px;
         }
         
-        .service-status {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .service-status:last-child {
-            border-bottom: none;
-        }
-        
-        .status-badge {
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 0.75rem;
+        label {
+            display: block;
+            margin-bottom: 8px;
             font-weight: 500;
         }
         
-        .status-active {
-            background: #dcfce7;
-            color: #166534;
-        }
-        
-        .status-inactive {
-            background: #fecaca;
-            color: #991b1b;
-        }
-        
-        .log-output {
-            background: var(--dark);
-            color: #00ff00;
-            padding: 16px;
+        textarea, input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border);
             border-radius: 8px;
             font-family: 'Monaco', 'Consolas', monospace;
             font-size: 0.875rem;
-            height: 200px;
+        }
+        
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        .key-list {
+            background: var(--light);
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+            max-height: 300px;
             overflow-y: auto;
-            margin-top: 12px;
         }
         
-        .refresh-btn {
-            background: none;
-            border: none;
-            color: var(--primary);
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
+        .key-item {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.75rem;
+            word-break: break-all;
         }
         
-        .refresh-btn:hover {
-            background: rgba(99, 102, 241, 0.1);
+        .key-item:last-child {
+            border-bottom: none;
         }
         
         .notification {
@@ -637,242 +381,133 @@ cat > /var/www/html/index.html << 'EOF'
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: white;
-            opacity: 0.8;
-            font-size: 0.875rem;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>🍐 Perry-NAS Dashboard</h1>
-            <p>Einfache Systemüberwachung & Verwaltung</p>
+            <h1>🔑 SSH Key Management</h1>
+            <p>Perry-NAS Multi-Client Zugriff</p>
         </header>
         
-        <div class="grid">
-            <!-- System Status -->
-            <div class="card">
-                <h2>
-                    📊 System Status
-                    <button class="refresh-btn" onclick="refreshStatus()">🔄</button>
-                </h2>
-                <div class="stat-grid" id="system-status">
-                    <div class="stat-item">
-                        <div class="stat-value" id="hostname">--</div>
-                        <div class="stat-label">Hostname</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="uptime">--</div>
-                        <div class="stat-label">Laufzeit</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="load">--</div>
-                        <div class="stat-label">CPU Last</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="memory">--</div>
-                        <div class="stat-label">Arbeitsspeicher</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="storage">--</div>
-                        <div class="stat-label">Speicher</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="temperature">--</div>
-                        <div class="stat-label">Temperatur</div>
-                    </div>
-                </div>
+        <div class="card">
+            <h2>➕ SSH Key hinzufügen</h2>
+            <p>Füge einen öffentlichen SSH Key für neuen Client-Zugriff hinzu.</p>
+            
+            <div class="form-group">
+                <label for="ssh-key">Öffentlicher SSH Key:</label>
+                <textarea id="ssh-key" placeholder="ssh-ed25519 AAAA... oder ssh-rsa AAAA..."></textarea>
             </div>
             
-            <!-- Dienst Status -->
-            <div class="card">
-                <h2>🔧 Dienste</h2>
-                <div id="service-status">
-                    <div class="service-status">
-                        <span>Samba Filesharing</span>
-                        <span class="status-badge status-active" id="service-smbd">Lädt...</span>
-                    </div>
-                    <div class="service-status">
-                        <span>Web Server</span>
-                        <span class="status-badge status-active" id="service-nginx">Lädt...</span>
-                    </div>
-                </div>
+            <div class="form-group">
+                <label for="key-comment">Kommentar (optional, zur Identifikation):</label>
+                <input type="text" id="key-comment" placeholder="laptop-2024 oder office-pc">
             </div>
             
-            <!-- Schnellaktionen -->
-            <div class="card">
-                <h2>⚡ Schnellaktionen</h2>
-                <div class="btn-group">
-                    <button class="btn btn-primary" onclick="executeAction('restart-services')">
-                        🔄 Dienste neustarten
-                    </button>
-                    <button class="btn btn-primary" onclick="executeAction('check-updates')">
-                        📦 Updates prüfen
-                    </button>
-                    <button class="btn btn-primary" onclick="executeAction('test-samba')">
-                        🔍 Samba testen
-                    </button>
-                    <button class="btn btn-primary" onclick="executeAction('test-web')">
-                        🌐 Web testen
-                    </button>
-                    <button class="btn btn-warning" onclick="showBackup()">
-                        💾 Backup erstellen
-                    </button>
-                </div>
-                
-                <div style="margin-top: 16px;">
-                    <h3 style="font-size: 1rem; margin-bottom: 8px;">Systemaktionen</h3>
-                    <div class="btn-group">
-                        <button class="btn btn-warning" onclick="confirmAction('safe-reboot', 'System neustarten?')">
-                            🔄 Neustart
-                        </button>
-                        <button class="btn btn-danger" onclick="confirmAction('safe-shutdown', 'System herunterfahren?')">
-                            ⏻ Herunterfahren
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <button class="btn btn-primary" onclick="addSSHKey()">
+                ➕ Key hinzufügen
+            </button>
+        </div>
+        
+        <div class="card">
+            <h2>📋 Aktuelle SSH Keys</h2>
+            <p>Verwaltete Keys für Client-Zugriff.</p>
             
-            <!-- Backup Bereich -->
-            <div class="card" id="backup-section" style="display: none;">
-                <h2>💾 System Backup</h2>
-                <p style="margin-bottom: 12px; color: var(--secondary);">
-                    Erstellt ein Backup der Systemkonfiguration und Benutzerdaten.
-                </p>
-                <button class="btn btn-primary" onclick="startBackup()">
-                    🔄 Backup starten
-                </button>
-                <div class="log-output" id="backup-output"></div>
-            </div>
+            <button class="btn btn-primary" onclick="loadSSHKeys()">
+                🔄 Liste aktualisieren
+            </button>
             
-            <!-- System Information -->
-            <div class="card">
-                <h2>ℹ️ System Information</h2>
-                <div style="margin-bottom: 12px;">
-                    <div style="font-size: 0.875rem; color: var(--secondary); margin-bottom: 4px;">SSH Zugang:</div>
-                    <code style="background: var(--light); padding: 4px 8px; border-radius: 4px; font-size: 0.875rem;">
-                        ssh ramon@<span id="ip-address">IP-ADRESSE</span>
-                    </code>
-                </div>
-                <div style="margin-bottom: 12px;">
-                    <div style="font-size: 0.875rem; color: var(--secondary); margin-bottom: 4px;">Samba Zugang:</div>
-                    <code style="background: var(--light); padding: 4px 8px; border-radius: 4px; font-size: 0.875rem;">
-                        //<span id="samba-ip">IP-ADRESSE</span>/public
-                    </code>
-                </div>
-                <div>
-                    <div style="font-size: 0.875rem; color: var(--secondary); margin-bottom: 4px;">Verfügbare Updates:</div>
-                    <div id="update-count">Wird geladen...</div>
-                </div>
+            <div class="key-list" id="key-list">
+                Lade Keys...
             </div>
         </div>
         
-        <footer class="footer">
-            <p>Perry-NAS • Debian Trixie • $(date +%Y) • Sicher & Einfach</p>
-        </footer>
+        <div class="card">
+            <h2>🚪 SSH Zugangsdaten</h2>
+            <div style="font-family: 'Monaco', 'Consolas', monospace; font-size: 0.875rem;">
+                <p><strong>Host:</strong> <span id="nas-ip">192.168.1.100</span></p>
+                <p><strong>Benutzer:</strong> ramon</p>
+                <p><strong>Port:</strong> 22</p>
+                <p><strong>Befehl:</strong> ssh ramon@<span id="nas-ip2">192.168.1.100</span></p>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Systemstatus abrufen
-        async function refreshStatus() {
-            try {
-                const response = await fetch('/api/system-info?action=status');
-                const data = await response.json();
-                
-                document.getElementById('hostname').textContent = data.hostname;
-                document.getElementById('uptime').textContent = data.uptime;
-                document.getElementById('load').textContent = data.load;
-                document.getElementById('memory').textContent = data.memory;
-                document.getElementById('storage').textContent = data.storage;
-                document.getElementById('temperature').textContent = data.temperature;
-                
-                // IP-Adresse anzeigen
-                const hostname = window.location.hostname;
-                document.getElementById('ip-address').textContent = hostname;
-                document.getElementById('samba-ip').textContent = hostname;
-                
-            } catch (error) {
-                console.error('Fehler beim Laden des Status:', error);
-            }
-            
-            // Dienststatus abrufen
-            try {
-                const response = await fetch('/api/system-info?action=services');
-                const data = await response.json();
-                
-                updateServiceStatus('service-smbd', data.smbd);
-                updateServiceStatus('service-nginx', data.nginx);
-                
-            } catch (error) {
-                console.error('Fehler beim Laden der Dienste:', error);
-            }
-            
-            // Updates abrufen
-            try {
-                const response = await fetch('/api/system-info?action=updates');
-                const count = await response.text();
-                document.getElementById('update-count').textContent = 
-                    count + ' verfügbare Updates';
-            } catch (error) {
-                console.error('Fehler beim Laden der Updates:', error);
-            }
-        }
+        // IP-Adresse anzeigen
+        const hostname = window.location.hostname;
+        document.getElementById('nas-ip').textContent = hostname;
+        document.getElementById('nas-ip2').textContent = hostname;
         
-        function updateServiceStatus(elementId, status) {
-            const element = document.getElementById(elementId);
-            element.textContent = status === 'active' ? 'Aktiv' : 'Inaktiv';
-            element.className = `status-badge ${status === 'active' ? 'status-active' : 'status-inactive'}`;
-        }
-        
-        // Aktionen ausführen
-        async function executeAction(action) {
-            showNotification('Aktion wird ausgeführt...', 'success');
+        // SSH Key hinzufügen
+        async function addSSHKey() {
+            const key = document.getElementById('ssh-key').value.trim();
+            const comment = document.getElementById('key-comment').value.trim();
+            
+            if (!key) {
+                showNotification('Bitte SSH Key eingeben', 'error');
+                return;
+            }
+            
+            // Kommentar zum Key hinzufügen
+            let finalKey = key;
+            if (comment && !key.includes(comment)) {
+                finalKey = key + ' ' + comment;
+            }
             
             try {
-                const response = await fetch(`/api/system-action?action=${action}`);
+                const formData = new FormData();
+                formData.append('key', finalKey);
+                
+                const response = await fetch('/api/ssh-add-key', {
+                    method: 'POST',
+                    body: formData
+                });
+                
                 const result = await response.text();
-                showNotification('Aktion erfolgreich', 'success');
-                console.log('Ergebnis:', result);
-                
-                // Status nach Aktionen aktualisieren
-                if (action === 'restart-services') {
-                    setTimeout(refreshStatus, 2000);
-                }
+                showNotification('SSH Key erfolgreich hinzugefügt', 'success');
+                document.getElementById('ssh-key').value = '';
+                document.getElementById('key-comment').value = '';
+                loadSSHKeys();
             } catch (error) {
-                showNotification('Fehler bei der Aktion', 'error');
+                showNotification('Fehler beim Hinzufügen des Keys', 'error');
                 console.error('Fehler:', error);
             }
         }
         
-        // Backup-Funktionen
-        function showBackup() {
-            document.getElementById('backup-section').style.display = 'block';
-        }
-        
-        async function startBackup() {
-            const output = document.getElementById('backup-output');
-            output.textContent = 'Backup wird gestartet...\n';
-            
+        // SSH Keys laden
+        async function loadSSHKeys() {
             try {
-                const response = await fetch('/api/backup');
-                const result = await response.text();
-                output.textContent += result;
-                showNotification('Backup erfolgreich gestartet', 'success');
+                const response = await fetch('/api/ssh-list-keys');
+                const keys = await response.text();
+                document.getElementById('key-list').innerHTML = keys;
             } catch (error) {
-                output.textContent += 'Fehler beim Backup: ' + error;
-                showNotification('Backup fehlgeschlagen', 'error');
+                document.getElementById('key-list').innerHTML = 'Fehler beim Laden der Keys';
+                console.error('Fehler:', error);
             }
         }
         
-        // Bestätigung für kritische Aktionen
-        function confirmAction(action, message) {
-            if (confirm(message + '\n\nDas System wird eine Warnung anzeigen und die Aktion in 1 Minute ausführen.')) {
-                executeAction(action);
+        // Key entfernen
+        async function removeSSHKey(comment) {
+            if (!confirm(`Key "${comment}" wirklich entfernen?`)) {
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('comment', comment);
+                
+                const response = await fetch('/api/ssh-remove-key', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.text();
+                showNotification('SSH Key entfernt', 'success');
+                loadSSHKeys();
+            } catch (error) {
+                showNotification('Fehler beim Entfernen des Keys', 'error');
+                console.error('Fehler:', error);
             }
         }
         
@@ -888,151 +523,140 @@ cat > /var/www/html/index.html << 'EOF'
             }, 3000);
         }
         
-        // Automatische Aktualisierung
-        setInterval(refreshStatus, 30000);
-        
-        // Initialisierung
+        // Automatisch Keys laden
         document.addEventListener('DOMContentLoaded', function() {
-            refreshStatus();
+            loadSSHKeys();
         });
     </script>
 </body>
 </html>
 EOF
 
-# Setze Berechtigungen für Web-Interface
-chown www-data:www-data /var/www/html/index.html
-chmod 644 /var/www/html/index.html
+# API Endpoints für SSH Management
+cat > /var/www/html/api/ssh-add-key << 'EOF'
+#!/bin/bash
+echo "Content-type: text/plain"
+echo ""
 
-success "Web-Interface erstellt"
+read -n $CONTENT_LENGTH POST_DATA
+KEY=$(echo "$POST_DATA" | sed -n 's/.*key=\([^&]*\).*/\1/p' | sed 's/+/ /g' | sed 's/%/\\x/g' | xargs -0 printf "%b")
 
-# --------------------------
-# Sudo-Berechtigungen
-# --------------------------
-log "Richte Sudo-Berechtigungen ein..."
-
-cat > /etc/sudoers.d/perry-nas << 'EOF'
-# Perry-NAS Sudo-Berechtigungen
-www-data ALL=(root) NOPASSWD: /usr/local/bin/nas-system-action
-www-data ALL=(root) NOPASSWD: /usr/local/bin/nas-backup
-ramon ALL=(root) NOPASSWD: /usr/local/bin/nas-*
-EOF
-
-chmod 440 /etc/sudoers.d/perry-nas
-
-success "Sudo-Berechtigungen konfiguriert"
-
-# --------------------------
-# Firewall konfigurieren
-# --------------------------
-log "Konfiguriere Firewall..."
-
-# UFW zurücksetzen
-ufw --force reset
-
-# Standard-Regeln
-ufw default deny incoming
-ufw default allow outgoing
-
-# Erlaube wichtige Ports
-ufw allow 22/tcp comment 'SSH'
-ufw allow 80/tcp comment 'HTTP'
-ufw allow 443/tcp comment 'HTTPS'
-ufw allow 445/tcp comment 'Samba'
-ufw allow 139/tcp comment 'Samba NetBIOS'
-
-# Aktiviere UFW
-ufw --force enable
-
-success "Firewall konfiguriert"
-
-# --------------------------
-# Systemd Services
-# --------------------------
-log "Starte und aktiviere Services..."
-
-# Services neu laden
-systemctl daemon-reload
-
-# Aktiviere und starte Services
-systemctl enable nginx smbd fcgiwrap
-systemctl start nginx smbd fcgiwrap
-
-# Prüfe Service-Status
-if systemctl is-active --quiet nginx; then
-    success "Nginx läuft"
-else
-    error "Nginx konnte nicht gestartet werden"
+if [ -z "$KEY" ]; then
+    echo "Error: No key provided"
+    exit 1
 fi
 
-if systemctl is-active --quiet smbd; then
-    success "Samba läuft"
-else
-    error "Samba konnte nicht gestartet werden"
-fi
+# Key zur authorized_keys hinzufügen
+echo "$KEY" >> /home/ramon/.ssh/authorized_keys
 
-success "Services gestartet"
+# Duplikate entfernen und sortieren
+sort /home/ramon/.ssh/authorized_keys | uniq > /home/ramon/.ssh/authorized_keys.tmp
+mv /home/ramon/.ssh/authorized_keys.tmp /home/ramon/.ssh/authorized_keys
 
-# --------------------------
-# Logging einrichten
-# --------------------------
-log "Richte Logging ein..."
+# Berechtigungen setzen
+chmod 600 /home/ramon/.ssh/authorized_keys
+chown ramon:ramon /home/ramon/.ssh/authorized_keys
 
-touch /var/log/nas-admin.log
-touch /var/log/nas-backup.log
-chown www-data:www-data /var/log/nas-*.log
-chmod 644 /var/log/nas-*.log
-
-# Logrotate für NAS Logs
-cat > /etc/logrotate.d/perry-nas << 'EOF'
-/var/log/nas-*.log {
-    weekly
-    missingok
-    rotate 4
-    compress
-    delaycompress
-    notifempty
-    copytruncate
-}
+echo "Key added successfully"
 EOF
 
-success "Logging eingerichtet"
+cat > /var/www/html/api/ssh-list-keys << 'EOF'
+#!/bin/bash
+echo "Content-type: text/html"
+echo ""
+
+KEY_FILE="/home/ramon/.ssh/authorized_keys"
+
+if [ ! -f "$KEY_FILE" ] || [ ! -s "$KEY_FILE" ]; then
+    echo "<p>Keine SSH Keys konfiguriert</p>"
+    exit 0
+fi
+
+while IFS= read -r key; do
+    if [ -n "$key" ]; then
+        # Kommentar extrahieren
+        comment=$(echo "$key" | awk '{for(i=3;i<=NF;i++) printf $i " "; print ""}' | sed 's/ $//')
+        algo=$(echo "$key" | awk '{print $1}')
+        fingerprint=$(echo "$key" | awk '{print $2}' | cut -c-20)...
+        
+        echo "<div class='key-item'>"
+        echo "<strong>$algo</strong> - $fingerprint<br>"
+        echo "<small>$comment</small><br>"
+        echo "<button class='btn btn-danger' onclick='removeSSHKey(\"$comment\")' style='margin-top: 5px; padding: 4px 8px; font-size: 0.7rem;'>🗑️ Entfernen</button>"
+        echo "</div>"
+    fi
+done < "$KEY_FILE"
+EOF
+
+cat > /var/www/html/api/ssh-remove-key << 'EOF'
+#!/bin/bash
+echo "Content-type: text/plain"
+echo ""
+
+read -n $CONTENT_LENGTH POST_DATA
+COMMENT=$(echo "$POST_DATA" | sed -n 's/.*comment=\([^&]*\).*/\1/p' | sed 's/+/ /g' | sed 's/%/\\x/g' | xargs -0 printf "%b")
+
+if [ -z "$COMMENT" ]; then
+    echo "Error: No comment provided"
+    exit 1
+fi
+
+KEY_FILE="/home/ramon/.ssh/authorized_keys"
+BACKUP_FILE="${KEY_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+
+# Backup erstellen
+cp $KEY_FILE $BACKUP_FILE
+
+# Key entfernen
+grep -v "$COMMENT" $KEY_FILE > ${KEY_FILE}.tmp
+mv ${KEY_FILE}.tmp $KEY_FILE
+
+# Berechtigungen setzen
+chmod 600 $KEY_FILE
+chown ramon:ramon $KEY_FILE
+
+echo "Key removed successfully"
+EOF
+
+# API Scripts ausführbar machen
+chmod +x /var/www/html/api/ssh-*
+chown www-data:www-data /var/www/html/api/ssh-*
 
 # --------------------------
-# Abschluss & Informationen
+# SSH Service neu starten
+# --------------------------
+log "Starte SSH Service neu..."
+
+# Config testen
+if sshd -t; then
+    systemctl reload ssh
+    log "SSH Service erfolgreich neu gestartet"
+else
+    error "SSH Konfiguration hat Fehler - restore Backup: $BACKUP_FILE"
+    exit 1
+fi
+
+# --------------------------
+# Abschluss
 # --------------------------
 IP_ADDRESS=$(hostname -I | awk '{print $1}')
-HOSTNAME=$(hostname)
 
 echo ""
-echo -e "${PURPLE}#############################################${NC}"
-echo -e "${PURPLE}#      PERRY-NAS SETUP ABGESCHLOSSEN!      #${NC}"
-echo -e "${PURPLE}#############################################${NC}"
+echo -e "${GREEN}✅ Multi-Client SSH Setup abgeschlossen!${NC}"
 echo ""
-echo -e "${GREEN}🎉 Perry-NAS wurde erfolgreich auf Debian Trixie installiert!${NC}"
-echo ""
-echo -e "${CYAN}🔗 ZUGANGSDATEN:${NC}"
-echo -e "  🌐 Web Interface: http://${IP_ADDRESS}/"
+echo -e "${BLUE}🔗 ZUGANGSDATEN:${NC}"
+echo -e "  🌐 SSH Management: http://${IP_ADDRESS}/ssh-management.html"
 echo -e "  🔐 SSH Zugang: ssh ramon@${IP_ADDRESS}"
-echo -e "  📁 Samba Public: //${IP_ADDRESS}/public"
-echo -e "  🔒 Samba Home: //${IP_ADDRESS}/home (User: nasuser, Pass: nasuser123)"
 echo ""
-echo -e "${CYAN}⚡ FUNKTIONEN:${NC}"
-echo -e "  📊 Echtzeit System Monitoring"
-echo -e "  🔄 Dienste verwalten"
-echo -e "  💾 Backup-System"
-echo -e "  🛡️  Integrierte Firewall"
-echo -e "  📦 Update-Verwaltung"
+echo -e "${BLUE}⚡ VERFÜGBARE BEFEHLE:${NC}"
+echo -e "  📋 Keys anzeigen: nas-ssh-status"
+echo -e "  ➕ Key hinzufügen: nas-add-ssh-key 'ssh-key'"
+echo -e "  🗑️  Key entfernen: nas-remove-ssh-key 'comment'"
+echo -e "  📜 Keys auflisten: nas-remove-ssh-key --list"
 echo ""
-echo -e "${YELLOW}🔧 SYSTEMINFORMATIONEN:${NC}"
-echo -e "  🖥️  Hostname: ${HOSTNAME}"
-echo -e "  📡 IP-Adresse: ${IP_ADDRESS}"
-echo -e "  🐧 Distribution: Debian Trixie"
+echo -e "${YELLOW}⚠️  HINWEISE:${NC}"
+echo -e "  • Passwort-Login ist aktuell noch AKTIVIERT (als Fallback)"
+echo -e "  • Füge Keys über Web-Interface oder Commandline hinzu"
+echo -e "  • Bei Problemen: Backup in ${BACKUP_FILE}"
 echo ""
-echo -e "${GREEN}📋 NÄCHSTE SCHRITTE:${NC}"
-echo -e "  1. Web Interface öffnen: http://${IP_ADDRESS}/"
-echo -e "  2. Samba Shares einrichten"
-echo -e "  3. Regelmäßige Backups konfigurieren"
-echo -e "  4. SSH Keys für sicheren Zugang einrichten"
-echo ""
-echo -e "${GREEN}🍐 Perry-NAS ist bereit! Viel Spaß mit deinem neuen NAS System!${NC}"
+echo -e "${GREEN}🚀 Perry-NAS ist bereit für Multi-Client Zugriff!${NC}"
