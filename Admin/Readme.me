@@ -1,0 +1,58 @@
+Script ausführen:
+
+bash
+chmod +x perry-nas-multi-ssh-setup.sh
+sudo ./perry-nas-multi-ssh-setup.sh
+🛠️ Verwendung
+A) Über Web-Interface:
+bash
+# Öffne im Browser:
+http://[NAS-IP]/ssh-management.html
+B) Über Commandline:
+bash
+# SSH Key hinzufügen
+nas-add-ssh-key 'ssh-ed25519 AAAAC3... user@laptop'
+
+# Keys anzeigen
+nas-ssh-status
+
+# Key entfernen
+nas-remove-ssh-key 'user@laptop'
+C) Auf Clients SSH Keys generieren:
+bash
+# Auf jedem Client-Rechner:
+ssh-keygen -t ed25519 -C "client-name-$(hostname)"
+cat ~/.ssh/id_ed25519.pub
+# Den ausgegebenen Key dann zum NAS hinzufügen
+🔒 Später Passwort-Login deaktivieren
+Wenn alle Keys eingerichtet sind:
+
+bash
+# Passwort-Login deaktivieren
+sudo nano /etc/ssh/sshd_config
+# Ändere: PasswordAuthentication no
+sudo systemctl reload ssh
+📱 Für Mobile Clients
+SSH Config auf jedem Client:
+
+text
+Host perry-nas
+    HostName [NAS-IP]
+    User ramon
+    Port 22
+    IdentitiesOnly yes
+Vorteile dieses Systems:
+
+✅ Keine festen Fingerprints
+
+✅ Web-basierte Key-Verwaltung
+
+✅ Commandline Tools
+
+✅ Multi-Client Unterstützung
+
+✅ Einfache Key-Rotation
+
+✅ Backup-Funktionalität
+
+Perfekt für den Einsatz mit mehreren Laptops, Desktops und mobilen Geräten! 🚀
