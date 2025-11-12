@@ -1,0 +1,231 @@
+# 🍐 Perry-NAS Admin Panel
+
+**Modernes Web-Interface zur Verwaltung deines NAS-Systems**  
+Ein benutzerfreundliches, sicheres und responsive Admin Panel für dein Perry-NAS.
+
+![Version](https://img.shields.io/badge/Version-2.0.0-green.svg)
+![Debian](https://img.shields.io/badge/Debian-Trixie-ready-red.svg)
+![Responsive](https://img.shields.io/badge/Responsive-✓-blue.svg)
+
+## 🌐 Zugang
+
+```bash
+# Web Interface öffnen
+http://[DEINE-NAS-IP]/
+
+# SSH Management (für Multi-Client)
+http://[DEINE-NAS-IP]/ssh-management.html
+```
+
+**Beispiel:** Wenn deine NAS die IP `192.168.1.100` hat:
+- Haupt-Interface: `http://192.168.1.100/`
+- SSH Management: `http://192.168.1.100/ssh-management.html`
+
+## 🎯 Funktionen
+
+### 📊 System Monitoring
+- **Echtzeit-Status**: CPU-Auslastung, Arbeitsspeicher, Speicherplatz
+- **Dienst-Überwachung**: Samba, Nginx, Systemd Services
+- **Hardware-Info**: Temperatur, Laufzeit, Systemlast
+- **Automatische Aktualisierung**: Alle 30 Sekunden
+
+### ⚡ Schnellaktionen
+| Aktion | Beschreibung | Bestätigung |
+|--------|--------------|-------------|
+| **Dienste neustarten** | Startet Samba & Nginx neu | - |
+| **Updates prüfen** | Zeigt verfügbare Systemupdates | - |
+| **Samba testen** | Prüft Samba-Dienst | - |
+| **Web testen** | Prüft Web-Server | - |
+| **Backup erstellen** | System-Backup | - |
+| **System neustarten** | Sanfter Neustart | ✅ 1 Minute Warnung |
+| **System herunterfahren** | Sanftes Herunterfahren | ✅ 1 Minute Warnung |
+
+### 💾 Backup System
+- **Automatische Backups**: Täglich via Systemd Timer
+- **Manuelle Backups**: Ein-Klick Backup über Web-Interface
+- **Backup-Inhalt**: 
+  - Samba Konfiguration
+  - Nginx Einstellungen
+  - System-Konfigs
+  - Benutzerdaten
+- **Retention**: Automatisches Löschen nach 7 Tagen
+
+### 🔑 SSH Key Management
+**Web-basierte Verwaltung unter:** `http://[NAS-IP]/ssh-management.html`
+
+#### Funktionen:
+- **➕ Key hinzufügen** - Per Copy & Paste oder Datei-Upload
+- **📋 Keys verwalten** - Liste aller aktiven SSH Keys
+- **🗑️ Key entfernen** - Einfaches Entfernen nicht mehr benötigter Keys
+- **🔍 Key-Comments** - Identifikation pro Client
+
+#### Commandline Tools:
+```bash
+# Keys anzeigen
+nas-ssh-status
+
+# Key hinzufügen
+nas-add-ssh-key 'ssh-ed25519 AAAAC3... user@laptop'
+
+# Key entfernen
+nas-remove-ssh-key 'user@laptop'
+
+# Liste aller Keys
+nas-remove-ssh-key --list
+```
+
+## 🛠️ System Commands
+
+Für erweiterte Administration stehen folgende Commands zur Verfügung:
+
+```bash
+# System Information
+nas-system-info status          # Systemstatus anzeigen
+nas-system-info services        # Dienststatus anzeigen  
+nas-system-info updates         # Verfügbare Updates anzeigen
+
+# System Aktionen
+nas-system-action restart-services    # Dienste neustarten
+nas-system-action check-updates       # Updates prüfen
+nas-system-action test-samba          # Samba testen
+nas-system-action test-web            # Webserver testen
+
+# Backup
+nas-backup                    # Manuelles Backup erstellen
+```
+
+## 🔧 API Endpoints
+
+Das Admin Panel bietet folgende API-Schnittstellen:
+
+### System Information
+```http
+GET /api/system-info?action=status
+GET /api/system-info?action=services  
+GET /api/system-info?action=updates
+```
+
+**Response Beispiel:**
+```json
+{
+  "hostname": "perry-nas",
+  "uptime": "2 hours, 15 minutes",
+  "load": "0.15, 0.12, 0.09",
+  "memory": "1.2G/7.8G",
+  "storage": "45G/932G (5%)",
+  "temperature": "45.2'C"
+}
+```
+
+### System Aktionen
+```http
+GET /api/system-action?action=restart-services
+GET /api/system-action?action=check-updates
+GET /api/system-action?action=safe-reboot
+GET /api/system-action?action=safe-shutdown
+```
+
+### Backup
+```http
+GET /api/backup
+```
+
+### SSH Management
+```http
+POST /api/ssh-add-key
+POST /api/ssh-remove-key  
+GET /api/ssh-list-keys
+```
+
+## 🎨 Design Features
+
+- **📱 Responsive Design**: Optimiert für Desktop, Tablet & Mobile
+- **🎨 Modern UI**: Cleanes Design mit Glassmorphism-Effekten
+- **⚡ Performance**: Schnelle Ladezeiten, minimale Ressourcen
+- **🔔 Benachrichtigungen**: Toast-Notifications für Aktionen
+- **🔄 Auto-Refresh**: Automatische Statusaktualisierung
+
+## 🔒 Sicherheit
+
+### Eingebaute Sicherheitsfeatures:
+- **🔐 Sudo-Berechtigungen**: Eingeschränkte Rechte für Web-Interface
+- **🛡️ Firewall**: UFW vorkonfiguriert mit notwendigen Ports
+- **📝 Logging**: Vollständige Protokollierung aller Aktionen
+- **⏱️ Session Management**: Sichere Verbindungen
+
+### Ports:
+- `80/tcp` - Web Interface (HTTP)
+- `22/tcp` - SSH Zugang  
+- `445/tcp` - Samba File Sharing
+- `139/tcp` - Samba NetBIOS
+
+## ❌ Troubleshooting
+
+### Häufige Probleme:
+
+**Web Interface lädt nicht:**
+```bash
+# Nginx Status prüfen
+systemctl status nginx
+
+# Nginx neustarten
+sudo systemctl restart nginx
+```
+
+**Samba Shares nicht erreichbar:**
+```bash
+# Samba Status prüfen
+systemctl status smbd
+
+# Samba neustarten
+sudo systemctl restart smbd
+
+# Samba testen
+nas-system-action test-samba
+```
+
+**SSH Keys funktionieren nicht:**
+```bash
+# SSH Service prüfen
+systemctl status ssh
+
+# SSH Keys überprüfen
+nas-ssh-status
+
+# Authorized Keys Berechtigungen prüfen
+ls -la /home/ramon/.ssh/
+```
+
+**Backup fehlgeschlagen:**
+```bash
+# Backup manuell testen
+sudo -u ramon nas-backup
+
+# Logs prüfen
+tail -f /var/log/nas-backup.log
+```
+
+### Logs einsehen:
+```bash
+# Admin Logs
+tail -f /var/log/nas-admin.log
+
+# Backup Logs  
+tail -f /var/log/nas-backup.log
+
+# System Logs
+journalctl -f
+```
+
+## 📞 Support
+
+Bei Problemen oder Fragen:
+
+1. **Logs prüfen**: Siehe Troubleshooting Abschnitt
+2. **Services status**: `systemctl status nginx smbd ssh`
+3. **Web Interface**: Prüfe die Browser Console für Fehler
+4. **API Test**: Direkter Aufruf der API Endpoints
+
+---
+
+**🍐 Perry-NAS Admin Panel** - *Einfach. Sicher. Modern.*
