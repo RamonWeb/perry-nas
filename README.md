@@ -68,6 +68,7 @@ sudo raspi-config
 
 ```bash
 # Repository klonen
+sudo apt install git
 git clone https://github.com/RamonWeb/perry-nas.git
 cd perry-nas
 
