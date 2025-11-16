@@ -1,231 +1,148 @@
-# 🍐 Perry-NAS Admin Panel
+```markdown
+# Perry-NAS Manager
 
-**Modernes Web-Interface zur Verwaltung deines NAS-Systems**  
-Ein benutzerfreundliches, sicheres und responsive Admin Panel für dein Perry-NAS.
+**Vollständiger Server Manager für dein Perry-NAS System**
 
-![Version](https://img.shields.io/badge/Version-2.0.0-green.svg)
-![Debian](https://img.shields.io/badge/Debian-Trixie-ready-red.svg)
-![Responsive](https://img.shields.io/badge/Responsive-✓-blue.svg)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%205-brightgreen)](https://www.raspberrypi.com/)
+[![Made with Bash](https://img.shields.io/badge/Made%20with-Bash-1f425f.svg)](https://www.gnu.org/software/bash/)
 
-## 🌐 Zugang
+## 🍐 Über Perry-NAS Manager
+
+Perry-NAS Manager ist ein umfassendes Management-Tool für dein Perry-NAS System. Es ermöglicht dir die vollständige Kontrolle deines NAS-Servers über eine intuitive Menüführung per SSH als root. Das Tool integriert sich nahtlos in dein bestehendes Perry-NAS Setup und erweitert es um alle benötigten Management-Funktionen.
+
+## 🚀 Features
+
+### 🔧 Festplatten Management
+- **Anzeige** verfügbarer Festplatten und Partitionen
+- **Einrichtung** neuer Festplatten mit Formatierung und automatischem Mounting
+- **Samba-Freigaben** erstellen, verwalten und neu starten
+- **Überblick** über aktuelle Mounts und fstab-Einträge
+
+### 🔄 System Updates
+- **Anzeige** verfügbarer System-Updates
+- **Vollständige** Systemaktualisierung (apt update && upgrade)
+- **Sicherheits-Updates** separat installieren
+
+### 📝 Log-Dateien
+- **System Logs** (journalctl) anzeigen und filtern
+- **Samba Logs** einsehen und analysieren
+- **Nginx Logs** für Web- und Zugriffs-Überwachung
+- **SMART Status** aller Festplatten überprüfen
+- **Volltextsuche** in allen System-Logs
+
+### 💾 Automatische Backups
+- **Sofort-Backups** starten
+- **Automatische Backups** per Cron-Job einrichten
+- **Konfigurierbare** Backup-Quellen und -Ziele
+- **Automatische Bereinigung** alter Backup-Dateien
+- **Flexible Zeitpläne** (täglich, wöchentlich, benutzerdefiniert)
+
+### 📊 System Status
+- **Vollständige Systemübersicht** (Hostname, OS, Kernel)
+- **Festplattennutzung** und Speicherplatz-Überblick
+- **Speicher- und CPU-Auslastung** in Echtzeit
+- **Status** aller wichtigen Dienste (Samba, Nginx, PHP-FPM, SMART)
+- **Temperaturüberwachung** des Systems
+
+### ⚡ System Steuerung
+- **System neu starten** oder **herunterfahren**
+- **Einzelne Dienste** neu starten
+- **Sichere** Befehlsausführung mit Bestätigung
+
+## 🛠️ Installation
+
+1. **Herunterladen des Scripts:**
+   ```bash
+   wget https://raw.githubusercontent.com/dein-username/perry-nas-manager/main/perry-nas-manager.sh
+   ```
+
+2. **Ausführbar machen:**
+   ```bash
+   chmod +x perry-nas-manager.sh
+   ```
+
+3. **Als root ausführen:**
+   ```bash
+   sudo ./perry-nas-manager.sh
+   ```
+
+## 📋 Voraussetzungen
+
+- **Raspberry Pi 5** (optimiert für Perry-NAS Setup)
+- **Linux Distribution** (getestet mit Raspberry Pi OS)
+- **Root-Rechte** (für Festplatten- und System-Management)
+- **Installierte Perry-NAS Komponenten** (Samba, Nginx, PHP, SMART-Tools)
+
+## 🎨 Perry-NAS Design
+
+Das Tool verwendet das charakteristische Perry-NAS Farbdesign:
+- **Purple** (`#8A2BE2`) - Hauptfarbe
+- **Blue** (`#0000FF`) - Informationen
+- **Green** (`#008000`) - Erfolge
+- **Red** (`#FF0000`) - Warnungen/Fehler
+- **Yellow** (`#FFFF00`) - Warnungen
+
+## 📖 Verwendung
+
+Starte das Tool mit:
+```bash
+sudo ./perry-nas-manager.sh
+```
+
+Navigiere durch das Hauptmenü mit den Zahlen 0-7:
+- `1` - Festplatten Management
+- `2` - System Updates
+- `3` - Log Dateien
+- `4` - Backup Einstellungen
+- `5` - System Status
+- `6` - System Steuerung
+- `7` - Konfiguration bearbeiten
+- `0` - Beenden
+
+## ⚙️ Konfiguration
+
+Das Tool erstellt automatisch eine Konfigurationsdatei unter `/etc/perry-nas-manager.conf` mit folgenden Einstellungen:
 
 ```bash
-# Web Interface öffnen
-http://[DEINE-NAS-IP]/
-
-# SSH Management (für Multi-Client)
-http://[DEINE-NAS-IP]/ssh-management.html
+# Perry-NAS Manager Konfiguration
+BACKUP_DIRS="/mnt/perry-nas"
+BACKUP_DEST="/mnt/perry-nas/backups"
+LOG_RETENTION_DAYS=30
+DEFAULT_USER="perry"
 ```
 
-**Beispiel:** Wenn deine NAS die IP `192.168.1.100` hat:
-- Haupt-Interface: `http://192.168.1.100/`
-- SSH Management: `http://192.168.1.100/ssh-management.html`
+Die Konfiguration kann über das Tool-Menü bearbeitet werden.
 
-## 🎯 Funktionen
+## 🛡️ Sicherheit
 
-### 📊 System Monitoring
-- **Echtzeit-Status**: CPU-Auslastung, Arbeitsspeicher, Speicherplatz
-- **Dienst-Überwachung**: Samba, Nginx, Systemd Services
-- **Hardware-Info**: Temperatur, Laufzeit, Systemlast
-- **Automatische Aktualisierung**: Alle 30 Sekunden
+- **Root-Check** bei jedem Start
+- **Bestätigungsabfragen** für kritische Aktionen
+- **Automatische Backups** vor wichtigen Änderungen (geplant)
+- **Logging** aller wichtigen Aktionen
 
-### ⚡ Schnellaktionen
-| Aktion | Beschreibung | Bestätigung |
-|--------|--------------|-------------|
-| **Dienste neustarten** | Startet Samba & Nginx neu | - |
-| **Updates prüfen** | Zeigt verfügbare Systemupdates | - |
-| **Samba testen** | Prüft Samba-Dienst | - |
-| **Web testen** | Prüft Web-Server | - |
-| **Backup erstellen** | System-Backup | - |
-| **System neustarten** | Sanfter Neustart | ✅ 1 Minute Warnung |
-| **System herunterfahren** | Sanftes Herunterfahren | ✅ 1 Minute Warnung |
+## 🤝 Mitwirken
 
-### 💾 Backup System
-- **Automatische Backups**: Täglich via Systemd Timer
-- **Manuelle Backups**: Ein-Klick Backup über Web-Interface
-- **Backup-Inhalt**: 
-  - Samba Konfiguration
-  - Nginx Einstellungen
-  - System-Konfigs
-  - Benutzerdaten
-- **Retention**: Automatisches Löschen nach 7 Tagen
+Beiträge sind willkommen! Bitte erstelle ein Issue oder sende einen Pull Request.
 
-### 🔑 SSH Key Management
-**Web-basierte Verwaltung unter:** `http://[NAS-IP]/ssh-management.html`
+## 📄 Lizenz
 
-#### Funktionen:
-- **➕ Key hinzufügen** - Per Copy & Paste oder Datei-Upload
-- **📋 Keys verwalten** - Liste aller aktiven SSH Keys
-- **🗑️ Key entfernen** - Einfaches Entfernen nicht mehr benötigter Keys
-- **🔍 Key-Comments** - Identifikation pro Client
+Dieses Projekt steht unter der [GNU General Public License v3.0](LICENSE).
 
-#### Commandline Tools:
-```bash
-# Keys anzeigen
-nas-ssh-status
+## 🍐 Perry-NAS Ecosystem
 
-# Key hinzufügen
-nas-add-ssh-key 'ssh-ed25519 AAAAC3... user@laptop'
-
-# Key entfernen
-nas-remove-ssh-key 'user@laptop'
-
-# Liste aller Keys
-nas-remove-ssh-key --list
-```
-
-## 🛠️ System Commands
-
-Für erweiterte Administration stehen folgende Commands zur Verfügung:
-
-```bash
-# System Information
-nas-system-info status          # Systemstatus anzeigen
-nas-system-info services        # Dienststatus anzeigen  
-nas-system-info updates         # Verfügbare Updates anzeigen
-
-# System Aktionen
-nas-system-action restart-services    # Dienste neustarten
-nas-system-action check-updates       # Updates prüfen
-nas-system-action test-samba          # Samba testen
-nas-system-action test-web            # Webserver testen
-
-# Backup
-nas-backup                    # Manuelles Backup erstellen
-```
-
-## 🔧 API Endpoints
-
-Das Admin Panel bietet folgende API-Schnittstellen:
-
-### System Information
-```http
-GET /api/system-info?action=status
-GET /api/system-info?action=services  
-GET /api/system-info?action=updates
-```
-
-**Response Beispiel:**
-```json
-{
-  "hostname": "perry-nas",
-  "uptime": "2 hours, 15 minutes",
-  "load": "0.15, 0.12, 0.09",
-  "memory": "1.2G/7.8G",
-  "storage": "45G/932G (5%)",
-  "temperature": "45.2'C"
-}
-```
-
-### System Aktionen
-```http
-GET /api/system-action?action=restart-services
-GET /api/system-action?action=check-updates
-GET /api/system-action?action=safe-reboot
-GET /api/system-action?action=safe-shutdown
-```
-
-### Backup
-```http
-GET /api/backup
-```
-
-### SSH Management
-```http
-POST /api/ssh-add-key
-POST /api/ssh-remove-key  
-GET /api/ssh-list-keys
-```
-
-## 🎨 Design Features
-
-- **📱 Responsive Design**: Optimiert für Desktop, Tablet & Mobile
-- **🎨 Modern UI**: Cleanes Design mit Glassmorphism-Effekten
-- **⚡ Performance**: Schnelle Ladezeiten, minimale Ressourcen
-- **🔔 Benachrichtigungen**: Toast-Notifications für Aktionen
-- **🔄 Auto-Refresh**: Automatische Statusaktualisierung
-
-## 🔒 Sicherheit
-
-### Eingebaute Sicherheitsfeatures:
-- **🔐 Sudo-Berechtigungen**: Eingeschränkte Rechte für Web-Interface
-- **🛡️ Firewall**: UFW vorkonfiguriert mit notwendigen Ports
-- **📝 Logging**: Vollständige Protokollierung aller Aktionen
-- **⏱️ Session Management**: Sichere Verbindungen
-
-### Ports:
-- `80/tcp` - Web Interface (HTTP)
-- `22/tcp` - SSH Zugang  
-- `445/tcp` - Samba File Sharing
-- `139/tcp` - Samba NetBIOS
-
-## ❌ Troubleshooting
-
-### Häufige Probleme:
-
-**Web Interface lädt nicht:**
-```bash
-# Nginx Status prüfen
-systemctl status nginx
-
-# Nginx neustarten
-sudo systemctl restart nginx
-```
-
-**Samba Shares nicht erreichbar:**
-```bash
-# Samba Status prüfen
-systemctl status smbd
-
-# Samba neustarten
-sudo systemctl restart smbd
-
-# Samba testen
-nas-system-action test-samba
-```
-
-**SSH Keys funktionieren nicht:**
-```bash
-# SSH Service prüfen
-systemctl status ssh
-
-# SSH Keys überprüfen
-nas-ssh-status
-
-# Authorized Keys Berechtigungen prüfen
-ls -la /home/ramon/.ssh/
-```
-
-**Backup fehlgeschlagen:**
-```bash
-# Backup manuell testen
-sudo -u ramon nas-backup
-
-# Logs prüfen
-tail -f /var/log/nas-backup.log
-```
-
-### Logs einsehen:
-```bash
-# Admin Logs
-tail -f /var/log/nas-admin.log
-
-# Backup Logs  
-tail -f /var/log/nas-backup.log
-
-# System Logs
-journalctl -f
-```
-
-## 📞 Support
-
-Bei Problemen oder Fragen:
-
-1. **Logs prüfen**: Siehe Troubleshooting Abschnitt
-2. **Services status**: `systemctl status nginx smbd ssh`
-3. **Web Interface**: Prüfe die Browser Console für Fehler
-4. **API Test**: Direkter Aufruf der API Endpoints
+Teil der Perry-NAS Toolchain:
+- [perry-nas-setup](https://github.com/dein-username/perry-nas-setup) - Setup Script
+- [perry-nas-manager](https://github.com/dein-username/perry-nas-manager) - Management Tool
+- [perry-nas-web](https://github.com/dein-username/perry-nas-web) - Web Interface (geplant)
 
 ---
 
-**🍐 Perry-NAS Admin Panel** - *Einfach. Sicher. Modern.*
+## 💬 Support
+
+Für Fragen oder Probleme erstelle bitte ein [GitHub Issue](https://github.com/dein-username/perry-nas-manager/issues).
+
+---
+
+**梨 Perry-NAS Manager - Dein zuverlässiger NAS-Partner** 🍐
+```
