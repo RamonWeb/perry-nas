@@ -54,7 +54,7 @@ Perry-NAS Manager ist ein umfassendes Management-Tool für dein Perry-NAS System
 
 1. **Herunterladen des Scripts:**
    ```bash
-   wget https://raw.githubusercontent.com/RamonWeb/perry-nas-manager/main/perry-nas-manager.sh
+   wget https://raw.githubusercontent.com/RamonWeb/perry-nas/Admin/main/perry-nas-manager.sh
    ```
 
 2. **Ausführbar machen:**
