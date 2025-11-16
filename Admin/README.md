@@ -132,9 +132,8 @@ Dieses Projekt steht unter der [GNU General Public License v3.0](LICENSE).
 ## 🍐 Perry-NAS Ecosystem
 
 Teil der Perry-NAS Toolchain:
-- [perry-nas-setup](https://github.com/dein-username/perry-nas-setup) - Setup Script
-- [perry-nas-manager](https://github.com/dein-username/perry-nas-manager) - Management Tool
-- [perry-nas-web](https://github.com/dein-username/perry-nas-web) - Web Interface (geplant)
+- [perry-nas-setup](https://github.com/RamonWeb/perry-nas) - Setup Script
+- [perry-nas-web](https://github.com/RamonWeb/perry-nas-web) - Web Interface (geplant)
 
 ---
 
