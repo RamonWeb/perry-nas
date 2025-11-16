@@ -1,4 +1,4 @@
-```markdown
+#```markdown
 # Perry-NAS Manager
 
 **Vollständiger Server Manager für dein Perry-NAS System**
@@ -54,7 +54,7 @@ Perry-NAS Manager ist ein umfassendes Management-Tool für dein Perry-NAS System
 
 1. **Herunterladen des Scripts:**
    ```bash
-   wget https://raw.githubusercontent.com/dein-username/perry-nas-manager/main/perry-nas-manager.sh
+   wget https://raw.githubusercontent.com/RamonWeb/perry-nas-manager/main/perry-nas-manager.sh
    ```
 
 2. **Ausführbar machen:**
@@ -70,7 +70,7 @@ Perry-NAS Manager ist ein umfassendes Management-Tool für dein Perry-NAS System
 ## 📋 Voraussetzungen
 
 - **Raspberry Pi 5** (optimiert für Perry-NAS Setup)
-- **Linux Distribution** (getestet mit Raspberry Pi OS)
+- **Linux Distribution** (getestet mit Raspberry Pi OS Trixi)
 - **Root-Rechte** (für Festplatten- und System-Management)
 - **Installierte Perry-NAS Komponenten** (Samba, Nginx, PHP, SMART-Tools)
 
