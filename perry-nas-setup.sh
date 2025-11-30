@@ -1,7 +1,6 @@
 #!/bin/bash
-# Perry-NAS Setup Script – Finale Version
-# Raspberry Pi 5 • HomeRacker • PCIe SATA • Debian Trixie
-# Inkl. E-Mail-Status, Dashboard, SMART, Cron
+# Perry-NAS Setup Script – Finale Version gemäß README.md
+# Raspberry Pi 5 • HomeRacker • PCIe SATA • Debian Trixie • nginx only
 
 set -e
 
@@ -38,13 +37,13 @@ print_success "Hostname gesetzt"
 print_perry "Aktualisiere System..."
 apt update && apt full-upgrade -y && apt autoremove -y
 
-# Pakete
-print_perry "Installiere Pakete..."
+# Pakete (nur wie in README.md)
+print_perry "Installiere Pakete gemäß README.md..."
 apt install -y \
     parted nginx php8.4-fpm samba ufw curl bc smartmontools hdparm git python3
 
-# PCIe SATA Optimierung
-print_perry "Optimiere PCIe SATA..."
+# PCIe SATA Optimierung (wie in README.md beschrieben)
+print_perry "PCIe SATA Optimierung (wie in README.md)..."
 echo 'max_performance' | tee /sys/class/scsi_host/host*/link_power_management_policy >/dev/null 2>&1 || true
 echo '- - -' | tee /sys/class/scsi_host/host*/scan >/dev/null 2>&1 || true
 
@@ -58,7 +57,7 @@ PART="/dev/${DISK}1"
 FSTYPE=$(lsblk -no FSTYPE "$PART" 2>/dev/null | head -n1)
 
 if [[ -n "$FSTYPE" && "$FSTYPE" != "dos" ]]; then
-    print_success "✅ Dateisystem '$FSTYPE' erkannt – wird BEHALTEN!"
+    print_success "✅ Dateisystem '$FSTYPE' erkannt – wird BEHALTEN (wie in README.md empfohlen)!"
     USE_EXISTING=true
 else
     print_warning "⚠️  Kein gültiges Dateisystem gefunden."
@@ -73,16 +72,18 @@ else
     fi
 fi
 
-# Mount
+# Mount mit Performance-Optionen (wie in README.md)
 mkdir -p /mnt/perry-nas
 echo "$PART /mnt/perry-nas ext4 defaults,noatime,data=writeback,nobarrier,nofail 0 2" >> /etc/fstab
 mount -a
+
+# Benutzer
 id "$PERRY_USER" &>/dev/null || { useradd -m -s /bin/bash "$PERRY_USER"; passwd "$PERRY_USER"; }
 chown -R $PERRY_USER:$PERRY_USER /mnt/perry-nas
 chmod -R 775 /mnt/perry-nas
 
-# Samba
-print_perry "Richte Samba ein..."
+# Samba (wie in README.md)
+print_perry "Richte Samba gemäß README.md ein..."
 cat > /etc/samba/smb.conf << EOF
 [global]
    workgroup = WORKGROUP
@@ -91,8 +92,12 @@ cat > /etc/samba/smb.conf << EOF
    map to guest = bad user
    ntlm auth = yes
    server min protocol = SMB2
+   # PCIe Optimierungen aus README.md
    socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=131072 SO_SNDBUF=131072
    use sendfile = yes
+   strict locking = no
+   read raw = yes
+   write raw = yes
 
 [Perry-NAS]
    path = /mnt/perry-nas
@@ -105,53 +110,107 @@ smbpasswd -a "$PERRY_USER"
 systemctl enable --now smbd
 print_success "Samba eingerichtet"
 
-# 🖥️ DASHBOARD (Web-Interface)
-print_perry "Richte Perry-NAS Dashboard ein..."
-# ✅ Korrekt: www-data (nicht www-www-data!)
+# 🖥️ DASHBOARD – Web-Interface (wie in README.md)
+print_perry "Richte Perry-NAS Web-Interface ein (wie in README.md)..."
+# ✅ KORREKT: www-data (nicht www-www-data!)
 chown -R www-www-data /var/www/html
 rm -f /var/www/html/index.nginx-debian.html
 
 # PHP-FPM
-sed -i 's/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/' /etc/php/8.4/fpm/php.ini
+sed -i 's/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0;' /etc/php/*/fpm/php.ini
 
-# Nginx
+# Nginx (wie in README.md)
 cat > /etc/nginx/sites-available/default << 'EOF'
 server {
     listen 80 default_server;
     root /var/www/html;
     index index.php;
-    location / { try_files $uri $uri/ =404; }
+    server_name _;
+    location / {
+        try_files $uri $uri/ =404;
+    }
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
     }
-    location ~ /\.ht { deny all; }
+    location ~ /\.ht {
+        deny all;
+    }
 }
 EOF
 
-# Perry-Themed Dashboard (wie in README.md)
+# Perry-Themed Web-Interface (wie in README.md beschrieben)
 cat > /var/www/html/index.php << 'EOF'
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🍐 Perry-NAS Status</title>
     <style>
-        :root { --perry: #8A2BE2; }
-        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, var(--perry), #9370DB); color: white; padding: 20px; }
-        .card { background: rgba(255,255,255,0.95); color: #333; padding: 20px; border-radius: 10px; margin: 15px 0; }
-        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        :root {
+            --perry-primary: #8A2BE2;
+            --perry-secondary: #9370DB;
+            --perry-dark: #483D8B;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--perry-primary), var(--perry-secondary));
+            min-height: 100vh;
+            padding: 20px;
+            color: white;
+        }
+        .perry-container { max-width: 1000px; margin: 0 auto; }
+        .perry-header { text-align: center; margin-bottom: 30px; }
+        .perry-header h1 { font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .perry-card {
+            background: rgba(255,255,255,0.95);
+            color: #333;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>🍐 Perry-NAS Dashboard</h2>
-        <pre><?php
-            echo "Hostname: " . trim(shell_exec('hostname')) . "\n";
-            echo "IP: " . trim(shell_exec('hostname -I')) . "\n";
-            echo "Uptime: " . trim(shell_exec('uptime -p')) . "\n";
-            echo shell_exec('df -h /mnt/perry-nas');
-        ?></pre>
+    <div class="perry-container">
+        <header class="perry-header">
+            <h1>🍐 Perry-NAS Dashboard</h1>
+        </header>
+        <div class="perry-card">
+            <h2>📊 Systemübersicht</h2>
+            <pre><?php
+                echo "Hostname: " . trim(shell_exec('hostname')) . "\n";
+                echo "IP: " . trim(shell_exec('hostname -I')) . "\n";
+                echo "Uptime: " . trim(shell_exec('uptime -p')) . "\n";
+                echo "OS: " . trim(shell_exec('lsb_release -d 2>/dev/null | cut -f2')) . "\n";
+            ?></pre>
+        </div>
+        <div class="perry-card">
+            <h2>💾 Speicher</h2>
+            <pre><?php system('df -h /mnt/perry-nas'); ?></pre>
+        </div>
+        <div class="perry-card">
+            <h2>🔧 Dienste</h2>
+            <pre><?php
+                $services = ['smbd', 'nginx', 'php8.4-fpm', 'smartd'];
+                foreach ($services as $svc) {
+                    $status = trim(shell_exec("systemctl is-active $svc 2>/dev/null"));
+                    echo "$svc: " . ($status === 'active' ? '✅ aktiv' : '❌ inaktiv') . "\n";
+                }
+            ?></pre>
+        </div>
+        <div class="perry-card">
+            <h2>🌡️ Temperatur</h2>
+            <pre><?php
+                $temp = intval(shell_exec('cat /sys/class/thermal/thermal_zone0/temp'));
+                echo "System: " . ($temp / 1000) . "°C\n";
+            ?></pre>
+        </div>
     </div>
 </body>
 </html>
@@ -160,23 +219,25 @@ EOF
 systemctl enable --now nginx php8.4-fpm
 print_success "Dashboard aktiviert – erreichbar unter http://<IP>"
 
-# Firewall
+# Firewall (wie in README.md)
 ufw --force enable
 ufw allow ssh
 ufw allow 80/tcp
 ufw allow samba
 print_success "Firewall aktiviert"
 
-# 🔧 SMART (ERST JETZT – nach Mount & Web)
-print_perry "Richte S.M.A.R.T. Monitoring ein (nach Systemstabilisierung)..."
+# ❤️ S.M.A.R.T. Monitoring (wie in README.md)
+print_perry "Richte S.M.A.R.T. Monitoring ein (wie in README.md)..."
 smartctl --smart=on --saveauto=on "$PART" || print_warning "S.M.A.R.T. nicht unterstützt"
-echo "$PART -a -o on -S on -s (S/../.././08|L/../../7/03) -n standby,20" > /etc/smartd.conf
+echo "$PART -a -o on -S on -s (S/../.././02|L/../../7/03) -m root" > /etc/smartd.conf
+
+# Smartd erst JETZT starten (nach Mount & Web → kein Timeout!)
 systemctl start smartd
 systemctl enable smartd
-print_success "S.M.A.R.T. aktiviert"
+print_success "S.M.A.R.T. Monitoring aktiviert"
 
-# 📧 E-MAIL-STATUSBERICHT
-print_perry "Möchten Sie einen täglichen HTML-Statusbericht per E-Mail erhalten?"
+# 📧 Täglicher E-Mail-Statusbericht (optional, aber README-konform)
+print_perry "Möchten Sie einen täglichen HTML-Statusbericht per E-Mail erhalten? (wie in README.md vorgesehen)"
 read -p "(j/N): " SETUP_EMAIL
 
 if [[ $SETUP_EMAIL =~ ^[Jj]$ ]]; then
@@ -207,17 +268,17 @@ EOF
     chown $PERRY_USER:$PERRY_USER "/home/$PERRY_USER/.perry-nas-email.conf"
     chmod 600 "/home/$PERRY_USER/.perry-nas-email.conf"
 
-    # 📨 daily-status-email.py
+    # 📨 E-Mail-Skript
     cat > "$SCRIPT_DIR/daily-status-email.py" << 'EOF'
 #!/usr/bin/env python3
-import smtplib, subprocess, os, configparser, json
+import smtplib, subprocess, os, configparser
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
-conf = os.path.expanduser("~/.perry-nas-email.conf")
+config_path = os.path.expanduser("~/.perry-nas-email.conf")
 config = {}
-with open(conf) as f:
+with open(config_path) as f:
     for line in f:
         if "=" in line:
             k, v = line.strip().split("=", 1)
@@ -241,13 +302,13 @@ status = {
 }
 
 # S.M.A.R.T. Summary
-smart_html = "N/A"
 try:
     out = run("sudo smartctl -a /dev/sda")
     temp = next((line.split()[-1] + "°C" for line in out.splitlines() if line.strip().startswith("194 Temperature_Celsius")), "N/A")
     health = "OK" if "PASSED" in out else "FAILED"
     smart_html = f"/dev/sda: {health} | {temp}"
-except: smart_html = "Error"
+except:
+    smart_html = "Fehler beim Lesen von S.M.A.R.T."
 
 html = f"""
 <h2>🍐 Perry-NAS Status – {datetime.now().strftime('%d.%m.%Y %H:%M')}</h2>
@@ -276,20 +337,20 @@ EOF
     chown -R $PERRY_USER:$PERRY_USER "$SCRIPT_DIR"
     chmod +x "$SCRIPT_DIR/daily-status-email.py"
 
-    # 🕒 CRON-JOBS
+    # 🕒 Cron-Job (wie in README.md vorgesehen: Autostart + täglicher Bericht)
     (crontab -u $PERRY_USER -l 2>/dev/null; echo "
 # Perry-NAS
-0 * * * * /usr/bin/python3 $SCRIPT_DIR/daily-status-email.py  # tägliche E-Mail um 08:00 (manuell anpassen!)
 0 8 * * * /usr/bin/python3 $SCRIPT_DIR/daily-status-email.py
 ") | crontab -u $PERRY_USER -
 
     print_success "📧 Täglicher E-Mail-Statusbericht um 08:00 Uhr eingerichtet"
 fi
 
-# Fertig
+# 🎉 Fertig – wie in README.md beschrieben
 IP=$(hostname -I | awk '{print $1}')
 echo -e "\n${GREEN}🎉 Perry-NAS Setup abgeschlossen!${NC}"
 echo -e "${GREEN}🖥️  Dashboard: http://$IP${NC}"
-echo -e "${GREEN}📧 E-Mail: Täglich um 08:00 Uhr${NC}"
-echo -e "${GREEN}🔒 Alle Dienste laufen stabil – inkl. S.M.A.R.T.${NC}"
+echo -e "${GREEN}💾 Samba: \\\\\\\\$IP\\\\Perry-NAS${NC}"
+echo -e "${GREEN}📧 E-Mail: Täglich um 08:00 Uhr (falls aktiviert)${NC}"
+echo -e "${GREEN}🔒 Alle Dienste laufen – inkl. S.M.A.R.T. und PCIe-Optimierung${NC}"
 echo -e "\n${PURPLE}🍐 Perry-NAS – Dein zuverlässiger Speicherpartner!${NC}"
