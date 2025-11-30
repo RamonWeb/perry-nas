@@ -117,7 +117,13 @@ chown -R www-data /var/www/html
 rm -f /var/www/html/index.nginx-debian.html
 
 # PHP-FPM
-sed -i 's/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0;' /etc/php/8.4/fpm/php.ini
+PHP_INI_FILE="/etc/php/8.4/fpm/php.ini"
+if [ -f "$PHP_INI_FILE" ]; then
+    sed -i 's/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0;' "$PHP_INI_FILE"
+    print_success "PHP-FPM php.ini angepasst"
+else
+    print_warning "PHP-FPM php.ini nicht gefunden – überspringe cgi.fix_pathinfo"
+fi
 
 # Nginx (wie in README.md)
 cat > /etc/nginx/sites-available/default << 'EOF'
