@@ -111,7 +111,7 @@ print_success "Samba eingerichtet"
 
 # Web-Interface (nginx)
 print_perry "Richte Web-Interface ein..."
-chown -R www-www-data /var/www/html
+chown -R www-data:www-data /var/www/html
 rm -f /var/www/html/index.nginx-debian.html
 
 # PHP-FPM
