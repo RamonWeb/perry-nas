@@ -1,7 +1,6 @@
 #!/bin/bash
-# Perry-NAS Setup Script – Finale Version
+# Perry-NAS Setup Script – Finale Version mit sicherer Plattenhandhabung
 # Raspberry Pi 5 • HomeRacker • PCIe SATA • Debian Trixie
-# Kompatibel mit README.md – Kein Apache2, nur nginx
 
 set -e
 
@@ -44,39 +43,40 @@ print_perry "Installiere Perry-NAS Pakete..."
 apt install -y \
     parted nginx php8.4-fpm samba ufw curl bc smartmontools hdparm git python3
 
-# PCIe SATA Optimierung
+# PCIe SATA Optimierung (FRÜH!)
 print_perry "Optimiere PCIe SATA..."
 echo 'max_performance' | tee /sys/class/scsi_host/host*/link_power_management_policy >/dev/null 2>&1 || true
 echo '- - -' | tee /sys/class/scsi_host/host*/scan >/dev/null 2>&1 || true
 
 # Festplatten-Erkennung
+print_perry "Erkenne Festplatten..."
 lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT
 read -p "PCIe Festplatte (z.B. sda): " DISK
 [ -z "$DISK" ] && print_error "Kein Device angegeben"
 [ ! -e "/dev/$DISK" ] && print_error "Device /dev/$DISK existiert nicht"
 
-# Bestehendes Dateisystem erkennen
-FSTYPE=$(lsblk -no FSTYPE "/dev/$DISK" | head -n1)
-USE_EXISTING=false
-if [[ -n "$FSTYPE" && "$FSTYPE" != "dos" && "$FSTYPE" != "" ]]; then
-    print_warning "Dateisystem '$FSTYPE' erkannt!"
-    read -p "Behalten? (j/N): " USE
-    [[ $USE =~ ^[Jj]$ ]] && USE_EXISTING=true
-fi
+# 🔍 Festplattenanalyse – sicher & klar
+PART="/dev/${DISK}1"
+FSTYPE=$(lsblk -no FSTYPE "$PART" 2>/dev/null | head -n1)
 
-# Partitionierung
-if [ "$USE_EXISTING" = true ]; then
-    PART=$(lsblk -n "/dev/$DISK" | grep "part" | head -n1 | awk '{print "/dev/" $1}' || echo "/dev/$DISK")
-    print_success "Verwende bestehendes Dateisystem auf $PART"
+if [[ -n "$FSTYPE" && "$FSTYPE" != "dos" ]]; then
+    print_success "✅ Dateisystem '$FSTYPE' auf $PART erkannt – wird BEHALTEN!"
+    USE_EXISTING=true
 else
-    umount "/dev/${DISK}"* 2>/dev/null || true
-    parted "/dev/$DISK" --script mklabel gpt
-    parted "/dev/$DISK" --script mkpart primary ext4 0% 100%
-    PART="/dev/${DISK}1"
-    mkfs.ext4 -F "$PART"
+    print_warning "⚠️  Kein gültiges Dateisystem auf $PART gefunden."
+    read -p "Möchten Sie eine neue ext4-Partition erstellen? (J/n): " CREATE
+    if [[ ! $CREATE =~ ^[Nn]$ ]]; then
+        umount "$PART" 2>/dev/null || true
+        parted "/dev/$DISK" --script mklabel gpt
+        parted "/dev/$DISK" --script mkpart primary ext4 0% 100%
+        mkfs.ext4 -F "$PART"
+        USE_EXISTING=false
+    else
+        print_error "Abbruch: Kein nutzbares Dateisystem verfügbar."
+    fi
 fi
 
-# Mount
+# Mount einrichten
 mkdir -p /mnt/perry-nas
 echo "$PART /mnt/perry-nas ext4 defaults,noatime,data=writeback,nobarrier,nofail 0 2" >> /etc/fstab
 mount -a
@@ -113,7 +113,7 @@ print_success "Samba eingerichtet"
 
 # Web-Interface
 print_perry "Richte Web-Interface ein..."
-chown -R www-data:www-data /var/www/html  # ✅ Korrekt: www-data
+chown -R www-www-data /var/www/html
 rm -f /var/www/html/index.nginx-debian.html
 
 # PHP-FPM
@@ -134,7 +134,7 @@ server {
 }
 EOF
 
-# Perry-Themed Web-Interface (aus README)
+# Perry-Themed Web-Interface
 cat > /var/www/html/index.php << 'EOF'
 <!DOCTYPE html>
 <html lang="de">
@@ -172,49 +172,23 @@ ufw allow 80/tcp
 ufw allow samba
 print_success "Firewall aktiviert"
 
-# 🔥 S.M.A.R.T. – PCIe-optimiert mit Timeout-Schutz
-print_perry "Richte S.M.A.R.T. Monitoring ein..."
+# 🔥 S.M.A.R.T. – JETZT erst aktivieren (nach Mount & Diensten)
+print_perry "Aktiviere S.M.A.R.T. Monitoring (nach Systemstabilisierung)..."
 
 # SMART aktivieren
 smartctl --smart=on --saveauto=on "$PART" || print_warning "S.M.A.R.T. nicht unterstützt"
 
-# Angepasstes smartd.service mit Verzögerung & Timeout
-DEV_NAME=$(basename "$PART")
-cat > /etc/systemd/system/smartd.service << EOF
-[Unit]
-Description=SMART Disk Monitoring Daemon
-After=local-fs.target
-After=dev-$DEV_NAME.device
-BindsTo=dev-$DEV_NAME.device
+# Konfiguration mit Standby-Schutz
+echo "$PART -a -o on -S on -s (S/../.././08|L/../../7/03) -n standby,20" > /etc/smartd.conf
 
-[Service]
-Type=forking
-ExecStart=/usr/sbin/smartd -d
-ExecReload=/bin/kill -HUP \$MAINPID
-PIDFile=/run/smartd.pid
-Restart=on-failure
-TimeoutStartSec=180
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# smartd.conf mit standby-Schutz und verzögertem Test
-cat > /etc/smartd.conf << EOF
-$PART -a -o on -S on -s (S/../.././08|L/../../7/03) -n standby,20
-EOF
-
-# Starten
-systemctl daemon-reload
-systemctl stop smartd 2>/dev/null || true
+# Smartd starten (jetzt läuft es stabil!)
 systemctl start smartd
 systemctl enable smartd
-print_success "S.M.A.R.T. Monitoring aktiviert (PCIe-optimiert)"
+print_success "S.M.A.R.T. Monitoring aktiviert"
 
 # Fertig
 IP=$(hostname -I | awk '{print $1}')
 echo -e "\n${GREEN}🎉 Perry-NAS Setup abgeschlossen!${NC}"
 echo -e "${GREEN}🌐 Web: http://$IP${NC}"
 echo -e "${GREEN}💾 Samba: \\\\\\\\$IP\\\\Perry-NAS${NC}"
-echo -e "${GREEN}🐧 SSH: ssh $PERRY_USER@$IP${NC}"
 echo -e "\n${PURPLE}🍐 Perry-NAS ist bereit – Dein zuverlässiger Speicherpartner!${NC}"
