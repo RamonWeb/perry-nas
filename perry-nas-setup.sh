@@ -113,7 +113,7 @@ print_success "Samba eingerichtet"
 # 🖥️ DASHBOARD – Web-Interface (wie in README.md)
 print_perry "Richte Perry-NAS Web-Interface ein (wie in README.md)..."
 # ✅ KORREKT: www-data (nicht www-www-data!)
-chown -R www-www-data /var/www/html
+chown -R www-data /var/www/html
 rm -f /var/www/html/index.nginx-debian.html
 
 # PHP-FPM
