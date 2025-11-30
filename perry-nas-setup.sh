@@ -1,6 +1,7 @@
 #!/bin/bash
-# Perry-NAS Setup Script – Finale Version für Raspberry Pi 5
-# HomeRacker • PCIe SATA • Debian Trixie • nginx only • Kein Apache2
+# Perry-NAS Setup Script – Finale Version
+# Raspberry Pi 5 • HomeRacker • PCIe SATA • Debian Trixie
+# Kompatibel mit README.md – Kein Apache2, nur nginx
 
 set -e
 
@@ -27,18 +28,18 @@ echo ""
 # Root-Check
 [ "$EUID" -ne 0 ] && print_error "Bitte als root ausführen: sudo $0"
 
-# Benutzer einrichten
+# Benutzer & Hostname
 read -p "Perry-NAS Benutzername (z.B. perry): " PERRY_USER
 PERRY_HOSTNAME="perry-nas"
 echo "$PERRY_HOSTNAME" > /etc/hostname
 sed -i "s/127.0.1.1.*/127.0.1.1\t$PERRY_HOSTNAME/g" /etc/hosts
-print_success "Hostname gesetzt: $PERRY_HOSTNAME"
+print_success "Hostname gesetzt"
 
 # System-Update
 print_perry "Aktualisiere System..."
 apt update && apt full-upgrade -y && apt autoremove -y
 
-# Pakete installieren
+# Pakete
 print_perry "Installiere Perry-NAS Pakete..."
 apt install -y \
     parted nginx php8.4-fpm samba ufw curl bc smartmontools hdparm git python3
@@ -49,7 +50,6 @@ echo 'max_performance' | tee /sys/class/scsi_host/host*/link_power_management_po
 echo '- - -' | tee /sys/class/scsi_host/host*/scan >/dev/null 2>&1 || true
 
 # Festplatten-Erkennung
-print_perry "Erkenne Festplatten..."
 lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT
 read -p "PCIe Festplatte (z.B. sda): " DISK
 [ -z "$DISK" ] && print_error "Kein Device angegeben"
@@ -76,15 +76,17 @@ else
     mkfs.ext4 -F "$PART"
 fi
 
-# Mount einrichten
+# Mount
 mkdir -p /mnt/perry-nas
 echo "$PART /mnt/perry-nas ext4 defaults,noatime,data=writeback,nobarrier,nofail 0 2" >> /etc/fstab
 mount -a
+
+# Benutzer
 id "$PERRY_USER" &>/dev/null || { useradd -m -s /bin/bash "$PERRY_USER"; passwd "$PERRY_USER"; }
 chown -R $PERRY_USER:$PERRY_USER /mnt/perry-nas
 chmod -R 775 /mnt/perry-nas
 
-# Samba einrichten
+# Samba
 print_perry "Richte Samba ein..."
 cat > /etc/samba/smb.conf << EOF
 [global]
@@ -109,9 +111,9 @@ smbpasswd -a "$PERRY_USER"
 systemctl enable --now smbd
 print_success "Samba eingerichtet"
 
-# Web-Interface (nginx)
+# Web-Interface
 print_perry "Richte Web-Interface ein..."
-chown -R www-data:www-data /var/www/html  # ✅ Korrekt: www-data (nicht www-www-data)
+chown -R www-data:www-data /var/www/html  # ✅ Korrekt: www-data
 rm -f /var/www/html/index.nginx-debian.html
 
 # PHP-FPM
@@ -170,45 +172,49 @@ ufw allow 80/tcp
 ufw allow samba
 print_success "Firewall aktiviert"
 
-# 🔥 S.M.A.R.T. – korrekt für Debian Trixie
+# 🔥 S.M.A.R.T. – PCIe-optimiert mit Timeout-Schutz
 print_perry "Richte S.M.A.R.T. Monitoring ein..."
 
-# Sicherstellen, dass smartd.service existiert
-if [ ! -f /lib/systemd/system/smartd.service ]; then
-    if [ -f /usr/share/doc/smartmontools/smartd.service ]; then
-        cp /usr/share/doc/smartmontools/smartd.service /lib/systemd/system/
-    else
-        tee /lib/systemd/system/smartd.service << 'EOF' >/dev/null
+# SMART aktivieren
+smartctl --smart=on --saveauto=on "$PART" || print_warning "S.M.A.R.T. nicht unterstützt"
+
+# Angepasstes smartd.service mit Verzögerung & Timeout
+DEV_NAME=$(basename "$PART")
+cat > /etc/systemd/system/smartd.service << EOF
 [Unit]
 Description=SMART Disk Monitoring Daemon
 After=local-fs.target
+After=dev-$DEV_NAME.device
+BindsTo=dev-$DEV_NAME.device
+
 [Service]
 Type=forking
 ExecStart=/usr/sbin/smartd -d
-ExecReload=/bin/kill -HUP $MAINPID
+ExecReload=/bin/kill -HUP \$MAINPID
 PIDFile=/run/smartd.pid
 Restart=on-failure
+TimeoutStartSec=180
+
 [Install]
 WantedBy=multi-user.target
 EOF
-    fi
-    systemctl daemon-reload
-fi
 
-smartctl --smart=on --saveauto=on "$PART" || print_warning "S.M.A.R.T. nicht unterstützt"
+# smartd.conf mit standby-Schutz und verzögertem Test
 cat > /etc/smartd.conf << EOF
-$PART -a -o on -S on -s (S/../.././02|L/../../7/03)
+$PART -a -o on -S on -s (S/../.././08|L/../../7/03) -n standby,20
 EOF
 
+# Starten
+systemctl daemon-reload
 systemctl stop smartd 2>/dev/null || true
 systemctl start smartd
 systemctl enable smartd
-print_success "S.M.A.R.T. Monitoring aktiviert"
+print_success "S.M.A.R.T. Monitoring aktiviert (PCIe-optimiert)"
 
-# Optional: E-Mail-Setup (kann später hinzugefügt werden)
-print_perry "✅ Perry-NAS Setup abgeschlossen!"
+# Fertig
 IP=$(hostname -I | awk '{print $1}')
-echo -e "\n${GREEN}🌐 Web-Interface: http://$IP${NC}"
+echo -e "\n${GREEN}🎉 Perry-NAS Setup abgeschlossen!${NC}"
+echo -e "${GREEN}🌐 Web: http://$IP${NC}"
 echo -e "${GREEN}💾 Samba: \\\\\\\\$IP\\\\Perry-NAS${NC}"
 echo -e "${GREEN}🐧 SSH: ssh $PERRY_USER@$IP${NC}"
 echo -e "\n${PURPLE}🍐 Perry-NAS ist bereit – Dein zuverlässiger Speicherpartner!${NC}"
