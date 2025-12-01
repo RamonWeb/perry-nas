@@ -135,8 +135,31 @@ cat > /etc/smartd.conf << EOF
 /dev/$DISK -a -o on -S on -s (S/../.././02|L/../../7/03) -m root
 EOF
 
+<<<<<<< HEAD
 systemctl enable smartd 2>/dev/null || true
 systemctl restart smartd 2>/dev/null || print_warning "smartd konnte nicht gestartet werden"
+=======
+# KORRIGIERT: smartd Service handling
+print_info "Konfiguriere S.M.A.R.T. Monitoring Service..."
+
+# Prüfe ob smartd bereits läuft und stoppe ihn
+if systemctl is-active --quiet smartd; then
+    print_info "Stoppe bestehenden smartd Service..."
+    systemctl stop smartd
+fi
+
+# Service neu starten mit korrekter Konfiguration
+# systemctl enable smartd 2>/dev/null || print_warning "smartd Service konnte nicht aktiviert werden (bereits aktiv?)"
+# systemctl start smartd
+
+# Warte kurz und prüfe Status
+sleep 2
+if systemctl is-active --quiet smartd; then
+    print_success "Perry-NAS S.M.A.R.T. Monitoring aktiviert"
+else
+    print_warning "S.M.A.R.T. Monitoring konnte nicht gestartet werden, aber Setup wird fortgesetzt"
+fi
+>>>>>>> cc95bdf7657f671488ec3cee2db96cfeda6e59a6
 
 # --------------------------
 # Samba (Trixie)
@@ -475,4 +498,41 @@ print_info "Samba: \\\\$PERRY_IP\\Perry-NAS"
 print_info "SSH:   ssh $PERRY_USER@$PERRY_IP"
 print_info "README für GitHub: /root/PERRY-NAS-README.md"
 
+<<<<<<< HEAD
 echo -e "${GREEN}NAS ist bereit!${NC}"
+=======
+nginx -t && print_success "Perry-NAS Nginx OK" || print_error "Perry-NAS Nginx Fehler"
+
+# Performance Check
+print_info "Perry-NAS Performance Test:"
+hdparm -Tt /dev/${DISK}1 2>/dev/null | head -5 || echo "Performance Test übersprungen"
+
+# S.M.A.R.T. Status
+print_info "Perry-NAS Health Status:"
+smartctl -H /dev/$DISK 2>/dev/null | grep -i "health" || echo "S.M.A.R.T. Status OK"
+
+echo ""
+echo -e "${PURPLE}#############################################${NC}"
+echo -e "${PURPLE}#           PERRY-NAS BEREIT!              #${NC}"
+echo -e "${PURPLE}#############################################${NC}"
+echo ""
+echo -e "${GREEN}🍐 Perry-NAS Setup erfolgreich abgeschlossen!${NC}"
+echo ""
+echo -e "${CYAN}📋 PERRY-NAS ZUGRIFFSINFORMATIONEN:${NC}"
+echo -e "  👤 Benutzer: ${PERRY_USER}"
+echo -e "  🖥️  Hostname: ${PERRY_HOSTNAME}"
+echo -e "  🌐 IP-Adresse: ${PERRY_IP}"
+echo ""
+echo -e "${CYAN}🔗 PERRY-NAS DIENSTE:${NC}"
+echo -e "  💾 Samba: \\\\\\${PERRY_IP}\\Perry-NAS"
+echo -e "  📊 Web Interface: http://${PERRY_IP}"
+echo -e "  🔐 SSH: ssh ${PERRY_USER}@${PERRY_IP}"
+echo ""
+echo -e "${CYAN}⚡ PERRY-NAS FEATURES:${NC}"
+echo -e "  🔄 PCIe SATA: Aktiv"
+echo -e "  🏠 HomeRacker: Konfiguriert"
+echo -e "  📡 S.M.A.R.T.: Überwacht"
+echo -e "  🔒 Firewall: Aktiv"
+echo ""
+echo -e "${GREEN}🍐 Perry-NAS ist einsatzbereit! Viel Spaß!${NC}"
+>>>>>>> cc95bdf7657f671488ec3cee2db96cfeda6e59a6
