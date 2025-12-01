@@ -1,12 +1,10 @@
 #!/bin/bash
-# Perry-NAS Setup Script – Raspberry Pi OS TRIXIE Version
-# Raspberry Pi 5 NAS mit PCIe SATA & HomeRacker
+# Perry-NAS Setup Script – Raspberry Pi OS Trixie Version
+# CLEAN VERSION: ohne SMART, mit PHP 8.4, mit finalem Statusreport am Ende
 
 set -e
 
-#############################################
 # Farbdefinitionen
-#############################################
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -21,306 +19,169 @@ print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-#############################################
 # Banner
-#############################################
 echo ""
 echo -e "${PURPLE}#############################################${NC}"
-echo -e "${PURPLE}#              PERRY-NAS (Trixie)           #${NC}"
-echo -e "${PURPLE}#       Raspberry Pi 5 PCIe NAS Setup       #${NC}"
+echo -e "${PURPLE}#              PERRY-NAS                   #${NC}"
+echo -e "${PURPLE}#    Raspberry Pi 5 NAS Setup (Trixie)     #${NC}"
+echo -e "${PURPLE}#     mit PCIe SATA & Webinterface         #${NC}"
 echo -e "${PURPLE}#############################################${NC}"
 echo ""
 
-#############################################
-# Root-Check
-#############################################
+# Root Check
 if [ "$EUID" -ne 0 ]; then
-    print_error "Bitte führe das Skript als root aus: sudo $0"
+    print_error "Bitte als root ausführen: sudo $0"
     exit 1
 fi
 
-#############################################
-# Konfiguration
-#############################################
-print_perry "Perry-NAS Konfiguration"
-
-read -p "Perry-NAS Benutzername eingeben (z.B. perry): " PERRY_USER
+# User Input
+print_perry "Perry-NAS Benutzer-Konfiguration"
+read -p "Benutzername: " PERRY_USER
 PERRY_IP=$(hostname -I | awk '{print $1}')
 PERRY_HOSTNAME="perry-nas"
 
 echo "$PERRY_HOSTNAME" > /etc/hostname
 sed -i "s/127.0.1.1.*/127.0.1.1\t$PERRY_HOSTNAME/g" /etc/hosts
-
 print_success "Hostname gesetzt: $PERRY_HOSTNAME"
 
-#############################################
-# Systemupdate
-#############################################
-print_perry "Systemaktualisierung..."
+# System Update
+print_perry "System wird aktualisiert..."
 apt update
 apt full-upgrade -y
 apt autoremove -y
 
-#############################################
-# Paketinstallation
-#############################################
-print_perry "Installiere benötigte Pakete..."
-apt install -y parted nginx php-fpm php-cli samba ufw curl bc smartmontools hdparm
+# Packages installieren
+apt install -y parted nginx php8.4-fpm php8.4-cli samba ufw curl bc hdparm
 
-#############################################
-# PCIe SATA Hardware
-#############################################
-print_perry "PCIe SATA Geräteerkennung"
-
+# PCIe SATA
+print_perry "PCIe SATA Hardwareprüfung"
 lsblk
-
-read -p "Bitte Device Name der PCIe Festplatte eingeben (z.B. sda): " DISK
+read -p "Bitte Device Name der SATA-Platte (z.B. sda): " DISK
 
 if [ ! -e "/dev/$DISK" ]; then
-    print_error "Device /dev/$DISK existiert nicht!"
+    print_error "Gerät /dev/$DISK existiert nicht."
     exit 1
 fi
 
-read -p "ALLE DATEN AUF /dev/$DISK LÖSCHEN? (ja/NEIN): " CONFIRM
+read -p "ALLE DATEN auf /dev/$DISK löschen? (ja/NEIN): " CONFIRM
 if [ "$CONFIRM" != "ja" ]; then
-    print_error "Vorgang abgebrochen."
+    print_error "Abbruch."
     exit 1
 fi
 
-#############################################
-# Festplatte einrichten
-#############################################
-umount "/dev/$DISK"* 2>/dev/null || true
+umount "/dev/${DISK}"* 2>/dev/null || true
 
-parted "/dev/$DISK" --script mklabel gpt
-parted "/dev/$DISK" --script mkpart primary ext4 0% 100%
-
-mkfs.ext4 -F "/dev/${DISK}1"
+print_info "Partition wird angelegt..."
+parted /dev/$DISK --script mklabel gpt
+parted /dev/$DISK --script mkpart primary ext4 0% 100%
+mkfs.ext4 -F /dev/${DISK}1
 
 mkdir -p /mnt/perry-nas
-echo "/dev/${DISK}1  /mnt/perry-nas  ext4  defaults,noatime,nofail  0  2" >> /etc/fstab
-
+echo "/dev/${DISK}1 /mnt/perry-nas ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
 mount -a
 
-#############################################
-# Benutzer anlegen
-#############################################
+# User erstellen
 if ! id "$PERRY_USER" &>/dev/null; then
     useradd -m -s /bin/bash "$PERRY_USER"
+    echo "Passwort für $PERRY_USER:";
     passwd "$PERRY_USER"
 fi
 
 chown -R $PERRY_USER:$PERRY_USER /mnt/perry-nas
 chmod -R 775 /mnt/perry-nas
 
-#############################################
-# SMART Monitoring (Trixie)
-#############################################
-print_perry "Aktiviere S.M.A.R.T."
+print_success "Festplatte eingerichtet!"
 
-smartctl --smart=on --saveauto=on /dev/$DISK
-
-cat > /etc/smartd.conf << EOF
-/dev/$DISK -a -o on -S on -m root
-EOF
-
-systemctl restart smartd || print_warning "SMART konnte nicht gestartet werden"
-
-#############################################
-# Samba Konfiguration
-#############################################
-print_perry "Samba Konfiguration"
-
-tee /etc/samba/smb.conf > /dev/null << EOF
+# Samba
+print_perry "Samba wird konfiguriert..."
+cat > /etc/samba/smb.conf << EOF
 [global]
    workgroup = WORKGROUP
-   server string = Perry-NAS ($PERRY_USER)
-   server min protocol = SMB2
-   server max protocol = SMB3
+   server string = Perry-NAS
    security = user
    map to guest = bad user
+   server min protocol = SMB2
+   server max protocol = SMB3
 
 [Perry-NAS]
    path = /mnt/perry-nas
-   valid users = $PERRY_USER
-   writable = yes
    browseable = yes
+   writable = yes
+   valid users = $PERRY_USER
+   force user = $PERRY_USER
    create mask = 0775
    directory mask = 0775
 EOF
 
+print_info "Samba Passwort setzen..."
 smbpasswd -a "$PERRY_USER"
+
+systemctl enable smbd
 systemctl restart smbd
 
-#############################################
-# Webinterface installieren
-#############################################
-print_perry "Installiere Perry-NAS Webinterface…"
-
+# Webinterface
+print_perry "Webinterface wird installiert..."
 rm -f /var/www/html/index.nginx-debian.html
+chown -R www-data:www-data /var/www/html
+chmod -R 755 /var/www/html
 
-PHP_SOCKET="/var/run/php/php8.2-fpm.sock"
-
-#############################################
-# Nginx Config
-#############################################
+PHP_VERSION="8.4"
 cat > /etc/nginx/sites-available/default << EOF
 server {
     listen 80 default_server;
+    listen [::]:80 default_server;
     root /var/www/html;
     index index.php index.html;
 
     location / {
-        try_files \$uri \$uri/ /index.php;
+        try_files \$uri \$uri/ =404;
     }
 
     location ~ \.php\$ {
-        fastcgi_pass unix:$PHP_SOCKET;
         include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
     }
 }
 EOF
 
-#############################################
-# API für Live-Daten
-#############################################
-mkdir -p /var/www/html/api
-
-cat > /var/www/html/api/status.php << 'EOF'
-<?php
-header('Content-Type: application/json');
-
-$loads = sys_getloadavg();
-
-$meminfo = file('/proc/meminfo');
-$mem = [];
-foreach ($meminfo as $line) {
-    if (preg_match('/^(\w+):\s+(\d+)/', $line, $m)) $mem[$m[1]] = (int)$m[2];
-}
-$total = $mem['MemTotal'] ?? 0;
-$free  = ($mem['MemFree'] ?? 0) + ($mem['Buffers'] ?? 0) + ($mem['Cached'] ?? 0);
-$used  = $total - $free;
-
-$temp = null;
-if (file_exists('/sys/class/thermal/thermal_zone0/temp')) {
-    $t = trim(file_get_contents('/sys/class/thermal/thermal_zone0/temp'));
-    if (is_numeric($t)) $temp = $t / 1000;
-}
-
-echo json_encode([
-    "timestamp" => time(),
-    "load" => $loads,
-    "memory" => [
-        "total" => $total * 1024,
-        "used"  => $used  * 1024,
-    ],
-    "temp" => $temp
-]);
-EOF
-
-#############################################
-# Webinterface HTML
-#############################################
-cat > /var/www/html/index.html << 'EOF'
+# Webinterface File
+cat > /var/www/html/index.php << 'EOF'
 <!DOCTYPE html>
 <html>
-<head>
-<meta charset="UTF-8">
-<title>Perry-NAS Status</title>
-<script>
-async function update() {
-    const r = await fetch('/api/status.php');
-    const j = await r.json();
+<head><meta charset="UTF-8"><title>Perry-NAS Status</title></head>
+<body style="font-family:Arial;background:#eee;padding:20px;">
+<h1>🍐 Perry-NAS Status</h1>
+<pre>
+Hostname: <?php echo shell_exec('hostname'); ?>
+Benutzer: <?php echo shell_exec('whoami'); ?>
+Uptime: <?php echo shell_exec('uptime -p'); ?>
 
-    document.getElementById("cpu").innerText = j.load[0].toFixed(2);
-    document.getElementById("ram").innerText = 
-        ((j.memory.used / j.memory.total) * 100).toFixed(1);
+Festplatte:
+<?php echo shell_exec('df -h /mnt/perry-nas'); ?>
 
-    if (j.temp)
-        document.getElementById("temp").innerText = j.temp.toFixed(1);
+RAM:
+<?php echo shell_exec('free -h'); ?>
 
-    // Live Charts
-    cpuChart.data.labels.push("");
-    cpuChart.data.datasets[0].data.push(j.load[0]);
-    cpuChart.update();
-
-    ramChart.data.labels.push("");
-    ramChart.data.datasets[0].data.push(
-        (j.memory.used / j.memory.total) * 100
-    );
-    ramChart.update();
-}
-setInterval(update, 1500);
-</script>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body style="font-family:sans-serif">
-<h1>🍐 Perry-NAS Live Status</h1>
-
-<p>CPU Load: <span id="cpu"></span></p>
-<p>RAM Nutzung: <span id="ram"></span>%</p>
-<p>Temperatur: <span id="temp"></span> °C</p>
-
-<h2>CPU Verlauf</h2>
-<canvas id="cpuChart"></canvas>
-
-<h2>RAM Verlauf</h2>
-<canvas id="ramChart"></canvas>
-
-<script>
-const cpuChart = new Chart(document.getElementById('cpuChart'), {
-    type: 'line',
-    data: { labels: [], datasets: [{ label: 'CPU Load', data: [] }] }
-});
-const ramChart = new Chart(document.getElementById('ramChart'), {
-    type: 'line',
-    data: { labels: [], datasets: [{ label: 'RAM %', data: [] }] }
-});
-</script>
-
-</body>
-</html>
+Load:
+<?php print_r(sys_getloadavg()); ?>
+</pre>
+</body></html>
 EOF
 
-#############################################
+systemctl restart nginx
+systemctl restart php${PHP_VERSION}-fpm
+
 # Firewall
-#############################################
+ufw --force enable
 ufw allow ssh
 ufw allow 80
 ufw allow samba
-ufw --force enable
 
-#############################################
-# Autostart
-#############################################
-systemctl enable nginx
-systemctl enable php8.2-fpm
-systemctl enable smbd
-systemctl enable smartd
+# Finaler Status
+print_perry "Perry-NAS Abschlussbericht"
+nginx -t && print_success "Nginx OK"
 
-#############################################
-# Systemd Mount Fix
-#############################################
-cat > /etc/systemd/system/perry-nas-mount.service << EOF
-[Unit]
-Description=Perry-NAS Storage Mount
-After=local-fs.target
+print_info "Festplatten-Performance:"
+hdparm -Tt /dev/${DISK}1 | head -5 || true
 
-[Service]
-Type=oneshot
-ExecStart=/bin/mount /mnt/perry-nas
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable perry-nas-mount.service
-
-#############################################
-# Abschluss
-#############################################
-print_success "🍐 Perry-NAS Setup erfolgreich abgeschlossen!"
-echo "Webinterface: http://$PERRY_IP/"
+print_success "PERRY-NAS Setup abgeschlossen!"
