@@ -1,4 +1,5 @@
 ✨ Perry-NAS Web-Dashboard Update (v3.0)
+
 Dieses Dokument beschreibt die Installation des Updates für das Perry-NAS Web-Interface, welches die Systemstatus-Anzeige um ein grafisches Dashboard (Chart.js) im lila Perry-Theming erweitert.
 
 🖼️ Update-Features
@@ -14,7 +15,8 @@ Stabilität: Das Update umfasst das Skript perry-web-update.sh, das Berechtigung
 Diese Anleitung setzt voraus, dass Sie das Haupt-Setup (perry-nas-setup.sh) bereits ausgeführt haben und das Perry-NAS Repository lokal geklont ist.
 
 1. Zum Update-Ordner navigieren
-Angenommen, das Update-Skript befindet sich im Unterordner updates
+
+Angenommen, das Update-Skript befindet sich im Unterordner updates:
 
 Bash
 
@@ -23,18 +25,25 @@ Bash
 cd perry-nas 
 
 # In das Verzeichnis des Web-Updates wechseln
-cd updates/web-v3
+
+cd updates/
+
 2. Update-Skript vorbereiten und ausführen
+
 Das Skript perry-web-update.sh installiert das neue Dashboard, indem es die Dateien /var/www/html/index.php und /var/www/html/data.php überschreibt.
 
 Bash
 
 # Skript ausführbar machen
+
 chmod +x perry-web-update.sh
 
 # Skript mit Root-Rechten ausführen
+
 sudo ./perry-web-update.sh
+
 3. Abschluss und Test
+
 Nach erfolgreicher Ausführung des Skripts:
 
 Der Webserver Nginx und der PHP-Dienst werden neu gestartet.
@@ -52,7 +61,7 @@ Verwenden Sie wget (oder curl), um die Datei direkt herunterzuladen:
 Bash
 
 # URL entsprechend Ihrem Repository-Pfad anpassen
-wget https://raw.githubusercontent.com/RamonWeb/perry-nas/main/updates/web-v3/perry-web-update.sh
+wget https://raw.githubusercontent.com/RamonWeb/perry-nas/main/updates/perry-web-update.sh
 
 # Berechtigungen setzen
 chmod +x perry-web-update.sh
@@ -75,3 +84,4 @@ Nginx Logs: Prüfen Sie die Webserver-Fehlerprotokolle:
 Bash
 
 sudo tail -f /var/log/nginx/error.log
+Wenn Sie einen der erweiterten Schritte wie den Health Check oder die Performance-Optimierung benötigen, teilen Sie mir dies bitte mit!
