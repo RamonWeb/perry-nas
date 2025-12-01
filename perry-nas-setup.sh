@@ -156,8 +156,8 @@ if systemctl is-active --quiet smartd; then
 fi
 
 # Service neu starten mit korrekter Konfiguration
-systemctl enable smartd 2>/dev/null || print_warning "smartd Service konnte nicht aktiviert werden (bereits aktiv?)"
-systemctl start smartd
+# systemctl enable smartd 2>/dev/null || print_warning "smartd Service konnte nicht aktiviert werden (bereits aktiv?)"
+# systemctl start smartd
 
 # Warte kurz und prüfe Status
 sleep 2
