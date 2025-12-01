@@ -14,11 +14,12 @@ Stabilität: Das Update umfasst das Skript perry-web-update.sh, das Berechtigung
 Diese Anleitung setzt voraus, dass Sie das Haupt-Setup (perry-nas-setup.sh) bereits ausgeführt haben und das Perry-NAS Repository lokal geklont ist.
 
 1. Zum Update-Ordner navigieren
-Angenommen, das Update-Skript befindet sich im Unterordner updates/web-v3:
+Angenommen, das Update-Skript befindet sich im Unterordner updates
 
 Bash
 
 # In das geklonte Hauptverzeichnis wechseln (falls noch nicht geschehen)
+
 cd perry-nas 
 
 # In das Verzeichnis des Web-Updates wechseln
