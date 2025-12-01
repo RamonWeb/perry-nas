@@ -135,7 +135,6 @@ cat > /etc/smartd.conf << EOF
 /dev/$DISK -a -o on -S on -s (S/../.././02|L/../../7/03) -m root
 EOF
 
-<<<<<<< HEAD
 systemctl enable smartd 2>/dev/null || true
 systemctl restart smartd 2>/dev/null || print_warning "smartd konnte nicht gestartet werden"
 =======
