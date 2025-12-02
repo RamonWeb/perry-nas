@@ -1,6 +1,5 @@
 #!/bin/bash
-# Perry-NAS Pip-Boy Theme Update Script
-# Implementiert das Retro-Monochrom-Design.
+# Perry-NAS Pip-Boy Theme Update Script - Inklusive CPU-Temperatur
 set -e
 
 # Farbdefinitionen
@@ -19,15 +18,33 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-print_perry "Starte Pip-Boy-Terminal-Design-Update."
+print_perry "Starte Pip-Boy-Terminal-Design-Update (inkl. CPU-Temperatur)."
 
 # --- 1. PHP-Skript zur Datenerfassung (data.php) ---
-print_perry "data.php bleibt unverändert."
-# Der Code für data.php wird beibehalten, da die Datenstruktur perfekt ist.
+print_perry "data.php wird um die Temperaturerfassung erweitert."
+
 cat > /var/www/html/data.php << 'EOF'
 <?php
-// ... (Der gesamte funktionierende data.php Code des letzten Schritts)
 header('Content-Type: application/json');
+
+// Funktion zum Abrufen der CPU-Temperatur
+function get_cpu_temp() {
+    $temp_raw = @file_get_contents('/sys/class/thermal/thermal_zone0/temp');
+    
+    if ($temp_raw === false) {
+        // Fallback für Raspberry Pi (Ältere OS-Versionen oder Pi 4/3)
+        $temp_output = shell_exec('vcgencmd measure_temp 2>&1');
+        if (preg_match('/temp=([0-9.]+)\'C/', $temp_output, $matches)) {
+            return ['temp_c' => (float)$matches[1]];
+        }
+        return ['temp_c' => 'N/A'];
+    }
+    
+    // Standard: Wert ist in Millidegree Celsius
+    $temp_c = round((int)trim($temp_raw) / 1000, 1);
+    
+    return ['temp_c' => $temp_c];
+}
 
 function get_disk_usage() {
     $disk_total = disk_total_space('/mnt/perry-nas');
@@ -111,6 +128,7 @@ $status = [
     'ram' => get_ram_usage(),
     'load' => get_load_avg(),
     'cpu' => get_cpu_usage(), 
+    'temp' => get_cpu_temp(), // NEU: CPU-Temperatur
     'timestamp' => date('Y-m-d H:i:s')
 ];
 
@@ -119,8 +137,7 @@ echo json_encode($status, JSON_PRETTY_PRINT);
 EOF
 
 # --- 2. Aktualisiertes HTML/JS Dashboard (index.php) ---
-print_perry "Implementiere Pip-Boy-Monochrom-Design."
-
+print_perry "Implementiere Temperaturanzeige im Frontend."
 
 cat > /var/www/html/index.php << 'EOF'
 <!DOCTYPE html>
@@ -133,9 +150,9 @@ cat > /var/www/html/index.php << 'EOF'
     <style>
         /* PIP-BOY MONOCHROM DESIGN */
         body {
-            font-family: 'Courier New', monospace; /* Terminal Schrift */
-            background-color: #000000; /* Schwarzer Hintergrund */
-            color: #39ff14; /* Neon-Grün */
+            font-family: 'Courier New', monospace; 
+            background-color: #000000; 
+            color: #39ff14; 
             margin: 0;
             padding: 20px;
             display: flex;
@@ -148,8 +165,8 @@ cat > /var/www/html/index.php << 'EOF'
             background: #000000; 
             padding: 30px;
             border-radius: 0;
-            border: 5px solid #39ff14; /* Heller Neon-Rahmen */
-            box-shadow: 0 0 50px rgba(57, 255, 20, 0.4); /* Starker Neon-Glow */
+            border: 5px solid #39ff14; 
+            box-shadow: 0 0 50px rgba(57, 255, 20, 0.4); 
         }
         h1 {
             color: #39ff14; 
@@ -172,7 +189,6 @@ cat > /var/www/html/index.php << 'EOF'
             gap: 20px;
             margin-bottom: 40px;
         }
-        /* Einfache Terminal-Boxen */
         .stat-box {
             background-color: transparent; 
             color: #39ff14;
@@ -188,21 +204,27 @@ cat > /var/www/html/index.php << 'EOF'
             text-decoration: underline;
             margin-bottom: 5px;
         }
-        /* Chart Container als Terminal-Blöcke */
         .chart-container {
             background: #000000; 
             padding: 15px;
             border-radius: 0;
-            border: 1px dashed #39ff14; /* Gestrichelte Terminal-Linie */
+            border: 1px dashed #39ff14; 
             box-shadow: 0 0 5px #39ff14; 
             color: #39ff14; 
-            min-height: 180px; /* Einheitliche Höhe für Balken */
+            min-height: 180px; 
         }
         .chart-container h3 {
             color: #39ff14; 
             text-align: center;
             text-shadow: 0 0 5px #39ff14;
             margin-bottom: 15px;
+        }
+        /* Neue Klasse für Temperaturanzeige */
+        .temp-display {
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
         }
         .grid-3 {
             display: grid;
@@ -211,7 +233,7 @@ cat > /var/www/html/index.php << 'EOF'
             margin-bottom: 40px;
         }
         
-        /* Progress Bar Styling (statt Doughnut Charts) */
+        /* Progress Bar Styling */
         .progress-bar-wrapper {
             margin-top: 10px;
             margin-bottom: 10px;
@@ -227,16 +249,16 @@ cat > /var/www/html/index.php << 'EOF'
             height: 100%;
             background-color: #39ff14;
             box-shadow: 0 0 10px #39ff14;
-            transition: width 0.5s ease-out; /* Übergang für flüssige Bewegung */
-            width: 0%; /* Wird durch JS gesetzt */
+            transition: width 0.5s ease-out; 
+            width: 0%; 
         }
         .progress-label {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: #000000; /* Schwarzer Text auf grünem Balken */
-            text-shadow: 1px 1px 0 #39ff14; /* Leichter Glow für Lesbarkeit */
+            color: #000000; 
+            text-shadow: 1px 1px 0 #39ff14; 
             font-weight: bold;
         }
     </style>
@@ -255,6 +277,8 @@ cat > /var/www/html/index.php << 'EOF'
         <div class="grid-3">
             <div class="chart-container">
                 <h3 id="cpu-label">CPU LOAD</h3>
+                <div class="temp-display" id="temp-info"></div>
+                
                 <div class="progress-bar-wrapper">
                     <div class="progress-bar">
                         <div class="progress-fill" id="cpu-fill"></div>
@@ -297,7 +321,6 @@ cat > /var/www/html/index.php << 'EOF'
         const API_URL = 'data.php';
         let loadChart;
 
-        // Globale Variablen für Stabilität
         let prevDiskUsed = null;
         let prevRAMUsed = null;
 
@@ -308,28 +331,59 @@ cat > /var/www/html/index.php << 'EOF'
             
             fill.style.width = percent + '%';
             
-            // Anpassung der Farbe bei kritischen Werten (Monochrom-Stil)
+            // Anpassung der Farbe bei kritischen Werten
+            const criticalColor = '#FF0000';
+            const cautionColor = '#FFFF00';
+            const normalColor = '#39ff14';
+
             if (percent >= 80) {
-                 fill.style.backgroundColor = '#FF0000'; // Rot bei Alarm
-                 fill.style.boxShadow = '0 0 10px #FF0000';
+                 fill.style.backgroundColor = criticalColor; 
+                 fill.style.boxShadow = '0 0 10px ' + criticalColor;
             } else if (percent >= 50) {
-                 fill.style.backgroundColor = '#FFFF00'; // Gelb bei Warnung
-                 fill.style.boxShadow = '0 0 10px #FFFF00';
+                 fill.style.backgroundColor = cautionColor; 
+                 fill.style.boxShadow = '0 0 10px ' + cautionColor;
             } else {
-                 fill.style.backgroundColor = '#39ff14'; // Normal
-                 fill.style.boxShadow = '0 0 10px #39ff14';
+                 fill.style.backgroundColor = normalColor; 
+                 fill.style.boxShadow = '0 0 10px ' + normalColor;
             }
 
-            // Textfarbe im Label anpassen (wird schwarz, wenn der Balken grün ist, und umgekehrt)
-            if (percent > 10) { // Nur Text anzeigen, wenn genug Platz
-                 percentSpan.style.color = (percent >= 50) ? '#000000' : '#39ff14';
-                 percentSpan.style.textShadow = (percent >= 50) ? '1px 1px 0 #39ff14' : '1px 1px 0 #000000';
+            // Textfarbe im Label anpassen
+            if (percent > 10) { 
+                 const textColor = (percent >= 50) ? '#000000' : normalColor;
+                 const textShadow = (percent >= 50) ? '1px 1px 0 ' + normalColor : '1px 1px 0 #000000';
+                 percentSpan.style.color = textColor;
+                 percentSpan.style.textShadow = textShadow;
 
             } else {
-                 percentSpan.style.color = '#39ff14';
+                 percentSpan.style.color = normalColor;
+                 percentSpan.style.textShadow = 'none';
             }
 
             percentSpan.innerText = labelText || (percent.toFixed(1) + '%');
+        }
+
+        function updateTempDisplay(temp, elementId) {
+            const tempElement = document.getElementById(elementId);
+            const normalColor = '#39ff14';
+            let displayColor = normalColor;
+            let displayGlow = '0 0 5px ' + normalColor;
+            
+            if (temp === 'N/A') {
+                tempElement.innerText = 'TEMP: N/A';
+            } else {
+                tempElement.innerText = 'TEMP: ' + temp + ' °C';
+                
+                if (temp > 75) {
+                    displayColor = '#FF0000'; // Rot: Alarm
+                    displayGlow = '0 0 5px ' + displayColor;
+                } else if (temp > 60) {
+                    displayColor = '#FFFF00'; // Gelb: Warnung
+                    displayGlow = '0 0 5px ' + displayColor;
+                }
+            }
+            
+            tempElement.style.color = displayColor;
+            tempElement.style.textShadow = displayGlow;
         }
 
         async function fetchSystemData() {
@@ -356,8 +410,13 @@ cat > /var/www/html/index.php << 'EOF'
             
             // --- CPU (Dynamisch) ---
             const cpuUsage = data.cpu.usage_percent;
+            const cpuTemp = data.temp.temp_c;
+            
             document.getElementById('cpu-label').innerText = 'CPU LOAD: ' + cpuUsage.toFixed(1) + '%';
             updateProgressBar('cpu-fill', 'cpu-percent', cpuUsage);
+            
+            // NEU: Temperaturanzeige aktualisieren
+            updateTempDisplay(cpuTemp, 'temp-info');
             
             // --- Festplatte (Stabil) ---
             const currentDiskUsed = data.disk.used;
@@ -392,11 +451,9 @@ cat > /var/www/html/index.php << 'EOF'
             };
 
             if (loadChart) {
-                // Update bestehenden Chart
                 loadChart.data.datasets[0].data = [data.load['1min'], data.load['5min'], data.load['15min']];
                 loadChart.update();
             } else {
-                 // Erstellen beim ersten Mal
                  loadChart = new Chart(
                     document.getElementById('loadChart'), {
                         type: 'bar',
@@ -453,4 +510,4 @@ else
     print_success "Nginx und PHP-FPM neu gestartet."
 fi
 
-print_success "Pip-Boy-Design-Update abgeschlossen. Willkommen im Ödland, Aufseher."
+print_success "Pip-Boy-Design-Update abgeschlossen. Temperaturüberwachung ist aktiviert."
