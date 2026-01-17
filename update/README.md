@@ -26,7 +26,7 @@ cd perry-nas
 
 # In das Verzeichnis des Web-Updates wechseln
 ```bash
-cd updates/
+cd update/
 ```
 
 2. Update-Skript vorbereiten und ausführen
