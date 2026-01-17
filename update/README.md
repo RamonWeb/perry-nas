@@ -42,7 +42,7 @@ chmod +x perry-theme-pip-boy.sh
 ```
 # Skript mit Root-Rechten ausführen
 ```bash
-sudo perry-theme-pip-boy.sh
+sudo ./perry-theme-pip-boy.sh
 ```
 
 3. Abschluss und Test
@@ -77,7 +77,7 @@ chmod +x perry-theme-pip-boy.sh
 2. Skript ausführen
 
 ```bash
-sudo perry-theme-pip-boy.sh
+sudo ./perry-theme-pip-boy.sh
 ```
 
 🐛 Problembehebung
