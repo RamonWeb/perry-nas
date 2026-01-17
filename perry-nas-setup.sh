@@ -47,15 +47,18 @@ print_perry "2. System-Aktualisierung und Pakete installieren"
 apt update
 apt full-upgrade -y
 apt autoremove -y
+# zusätzliche Treiber für Windows-Dateisysteme
+apt install ntfs-3g
+apt install exfat-fuse
 
 # PHP 8.4 ist hier als Beispiel gesetzt; falls nicht verfügbar, bitte auf 8.3 ändern!
 PHP_VERSION="8.4"
 apt install -y parted nginx php${PHP_VERSION}-fpm php${PHP_VERSION}-cli samba ufw curl bc hdparm
 print_success "Alle notwendigen Pakete (inkl. PHP ${PHP_VERSION}) installiert."
 
-# --- 2. Festplatte partitionieren und mounten (mit UUID) ---
-print_perry "3. PCIe SATA Hardware-Setup und Partitionierung"
-lsblk
+# --- 2. Festplatte erkennen und mounten ---
+print_perry "3. Hardware-Setup und Dateisystem-Check"
+lsblk -f
 read -p "Bitte Device Name der SATA-Platte (z.B. sda): " DISK
 
 if [ ! -e "/dev/$DISK" ]; then
@@ -63,28 +66,47 @@ if [ ! -e "/dev/$DISK" ]; then
     exit 1
 fi
 
-read -p "ALLE DATEN auf /dev/$DISK löschen? (ja/NEIN): " CONFIRM
-if [ "$CONFIRM" != "ja" ]; then
-    print_error "Abbruch."
-    exit 1
+# Partition ermitteln (wir nehmen die erste)
+PART="/dev/${DISK}1"
+if [ ! -e "$PART" ]; then
+    print_warning "Keine Partition auf $PART gefunden. Erstelle neue Partition..."
+    parted /dev/$DISK --script mklabel gpt
+    parted /dev/$DISK --script mkpart primary ext4 0% 100%
+    mkfs.ext4 -F $PART
+    FORMAT_CONFIRM="ja"
+else
+    # Vorhandenes Dateisystem auslesen
+    FSTYPE=$(lsblk -no FSTYPE $PART)
+    print_info "Gefundenes Dateisystem auf $PART: ${FSTYPE:-UNBEKANNT}"
+    
+    read -p "Soll $PART neu als ext4 FORMATIERT werden? (Daten gehen verloren!) (ja/NEIN): " FORMAT_CONFIRM
+    if [ "$FORMAT_CONFIRM" == "ja" ]; then
+        umount "$PART"* 2>/dev/null || true
+        mkfs.ext4 -F $PART
+        FSTYPE="ext4"
+    fi
 fi
 
-# Unmounten (falls gemountet) und Formatieren
-umount "/dev/${DISK}"* 2>/dev/null || true
-print_info "Partition wird angelegt und formatiert..."
-parted /dev/$DISK --script mklabel gpt
-parted /dev/$DISK --script mkpart primary ext4 0% 100%
-mkfs.ext4 -F /dev/${DISK}1
+# UUID und Mount-Optionen festlegen
+DISK_UUID=$(blkid -s UUID -o value $PART)
+case $FSTYPE in
+    ntfs|ntfs-3g) MOUNT_OPTS="defaults,permissions,noatime,nofail" ;;
+    vfat|exfat)   MOUNT_OPTS="defaults,uid=$(id -u $PERRY_USER),gid=$(id -g $PERRY_USER),nofail" ;;
+    *)            MOUNT_OPTS="defaults,noatime,nofail" ;;
+esac
 
-# UUID ermitteln und fstab setzen (sehr wichtig für Stabilität!)
-DISK_UUID=$(blkid -s UUID -o value /dev/${DISK}1)
-print_info "Ermittelte UUID für fstab: $DISK_UUID"
-
+# In fstab eintragen (Duplikate verhindern)
 mkdir -p /mnt/perry-nas
-echo "UUID=$DISK_UUID /mnt/perry-nas ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
-mount -a
-print_success "Festplatte eingerichtet und via UUID in fstab eingetragen!"
+if ! grep -q "$DISK_UUID" /etc/fstab; then
+    echo "UUID=$DISK_UUID /mnt/perry-nas $FSTYPE $MOUNT_OPTS 0 2" >> /etc/fstab
+    print_success "Eintrag in fstab erstellt ($FSTYPE)."
+else
+    print_info "Eintrag bereits vorhanden. Aktualisiere nur Mount-Optionen..."
+    sed -i "s|.*$DISK_UUID.*|UUID=$DISK_UUID /mnt/perry-nas $FSTYPE $MOUNT_OPTS 0 2|" /etc/fstab
+fi
 
+mount -a
+print_success "Festplatte ist unter /mnt/perry-nas einsatzbereit!"
 # --- 3. Benutzer und Berechtigungen ---
 print_perry "4. Benutzer erstellen und Berechtigungen setzen"
 if ! id "$PERRY_USER" &>/dev/null; then
