@@ -31,16 +31,19 @@ cd updates/
 2. Update-Skript vorbereiten und ausführen
 
 Das Skript perry-web-update.sh installiert das neue Dashboard, indem es die Dateien /var/www/html/index.php und /var/www/html/data.php überschreibt.
+als Tests habe verschiedene Themen erstellt.: perry-theme-pip-boy.sh  perry-theme-startrek.sh  perry-web-update2.sh  perry-web-update.sh
 
 Bash
 
 # Skript ausführbar machen
 
-chmod +x perry-web-update.sh
+#chmod +x perry-web-update.sh
+chmod +x perry-theme-pip-boy.sh
 
 # Skript mit Root-Rechten ausführen
 
-sudo ./perry-web-update.sh
+#sudo ./perry-web-update.sh
+sudo perry-theme-pip-boy.sh
 
 3. Abschluss und Test
 
