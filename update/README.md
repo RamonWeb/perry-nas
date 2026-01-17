@@ -18,14 +18,14 @@ Diese Anleitung setzt voraus, dass Sie das Haupt-Setup (perry-nas-setup.sh) bere
 
 Angenommen, das Update-Skript befindet sich im Unterordner updates:
 
-```bash
 
 # In das geklonte Hauptverzeichnis wechseln (falls noch nicht geschehen)
-
+```bash
 cd perry-nas 
+```
 
 # In das Verzeichnis des Web-Updates wechseln
-
+```bash
 cd updates/
 ```
 
@@ -35,14 +35,13 @@ Das Skript perry-web-update.sh installiert das neue Dashboard, indem es die Date
 
 Als Tests habe verschiedene Themen erstellt.: perry-theme-pip-boy.sh  perry-theme-startrek.sh  perry-web-update2.sh  perry-web-update.sh
 
-```bash
 
 # Skript ausführbar machen
-
+```bash
 chmod +x perry-theme-pip-boy.sh
-
+```
 # Skript mit Root-Rechten ausführen
-
+```bash
 sudo perry-theme-pip-boy.sh
 ```
 
@@ -62,18 +61,22 @@ Falls Sie das Repository nicht klonen möchten, können Sie das Skript auch manu
 1. Skript herunterladen
 Verwenden Sie wget (oder curl), um die Datei direkt herunterzuladen:
 
-```bash
 
 # URL entsprechend Ihrem Repository-Pfad anpassen
+
+```bash
 wget https://raw.githubusercontent.com/RamonWeb/perry-nas/main/updates/perry-theme-pip-boy.sh
+```
 
 # Berechtigungen setzen
+
+```bash
 chmod +x perry-theme-pip-boy.sh
 ```
 
 2. Skript ausführen
-```bash
 
+```bash
 sudo perry-theme-pip-boy.sh
 ```
 
@@ -85,13 +88,12 @@ Berechtigungen: Stellen Sie sicher, dass das Skript mit sudo ausgeführt wurde.
 PHP-FPM: Überprüfen Sie, ob der PHP-Dienst korrekt läuft (ersetzen Sie 8.4 durch Ihre installierte Version):
 
 ```bash
-
 sudo systemctl status php8.4-fpm
 ```
 Nginx Logs: Prüfen Sie die Webserver-Fehlerprotokolle:
 
 ```bash
-
 sudo tail -f /var/log/nginx/error.log
 ```
+
 Wenn Sie einen der erweiterten Schritte wie den Health Check oder die Performance-Optimierung benötigen, teilen Sie mir dies bitte mit!
