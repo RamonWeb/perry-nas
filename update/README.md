@@ -31,18 +31,17 @@ cd updates/
 2. Update-Skript vorbereiten und ausführen
 
 Das Skript perry-web-update.sh installiert das neue Dashboard, indem es die Dateien /var/www/html/index.php und /var/www/html/data.php überschreibt.
-als Tests habe verschiedene Themen erstellt.: perry-theme-pip-boy.sh  perry-theme-startrek.sh  perry-web-update2.sh  perry-web-update.sh
+
+Als Tests habe verschiedene Themen erstellt.: perry-theme-pip-boy.sh  perry-theme-startrek.sh  perry-web-update2.sh  perry-web-update.sh
 
 Bash
 
 # Skript ausführbar machen
 
-#chmod +x perry-web-update.sh
 chmod +x perry-theme-pip-boy.sh
 
 # Skript mit Root-Rechten ausführen
 
-#sudo ./perry-web-update.sh
 sudo perry-theme-pip-boy.sh
 
 3. Abschluss und Test
@@ -64,14 +63,16 @@ Verwenden Sie wget (oder curl), um die Datei direkt herunterzuladen:
 Bash
 
 # URL entsprechend Ihrem Repository-Pfad anpassen
-wget https://raw.githubusercontent.com/RamonWeb/perry-nas/main/updates/perry-web-update.sh
+wget https://raw.githubusercontent.com/RamonWeb/perry-nas/main/updates/perry-theme-pip-boy.sh
 
 # Berechtigungen setzen
-chmod +x perry-web-update.sh
+chmod +x perry-theme-pip-boy.sh
+
 2. Skript ausführen
 Bash
 
-sudo ./perry-web-update.sh
+sudo perry-theme-pip-boy.sh
+
 🐛 Problembehebung
 Wenn das neue Dashboard nicht angezeigt wird, prüfen Sie bitte folgende Punkte:
 
