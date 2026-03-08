@@ -18,29 +18,32 @@ Diese Anleitung setzt voraus, dass Sie das Haupt-Setup (perry-nas-setup.sh) bere
 
 Angenommen, das Update-Skript befindet sich im Unterordner updates:
 
-Bash
 
 # In das geklonte Hauptverzeichnis wechseln (falls noch nicht geschehen)
-
+```bash
 cd perry-nas 
+```
 
 # In das Verzeichnis des Web-Updates wechseln
-
-cd updates/
+```bash
+cd update/
+```
 
 2. Update-Skript vorbereiten und ausführen
 
 Das Skript perry-web-update.sh installiert das neue Dashboard, indem es die Dateien /var/www/html/index.php und /var/www/html/data.php überschreibt.
 
-Bash
+Als Tests habe verschiedene Themen erstellt.: perry-theme-pip-boy.sh  perry-theme-startrek.sh  perry-web-update2.sh  perry-web-update.sh
+
 
 # Skript ausführbar machen
-
-chmod +x perry-web-update.sh
-
+```bash
+chmod +x perry-theme-pip-boy.sh
+```
 # Skript mit Root-Rechten ausführen
-
-sudo ./perry-web-update.sh
+```bash
+sudo ./perry-theme-pip-boy.sh
+```
 
 3. Abschluss und Test
 
@@ -58,17 +61,25 @@ Falls Sie das Repository nicht klonen möchten, können Sie das Skript auch manu
 1. Skript herunterladen
 Verwenden Sie wget (oder curl), um die Datei direkt herunterzuladen:
 
-Bash
 
 # URL entsprechend Ihrem Repository-Pfad anpassen
-wget https://raw.githubusercontent.com/RamonWeb/perry-nas/main/updates/perry-web-update.sh
+
+```bash
+wget https://raw.githubusercontent.com/RamonWeb/perry-nas/main/updates/perry-theme-pip-boy.sh
+```
 
 # Berechtigungen setzen
-chmod +x perry-web-update.sh
-2. Skript ausführen
-Bash
 
-sudo ./perry-web-update.sh
+```bash
+chmod +x perry-theme-pip-boy.sh
+```
+
+2. Skript ausführen
+
+```bash
+sudo ./perry-theme-pip-boy.sh
+```
+
 🐛 Problembehebung
 Wenn das neue Dashboard nicht angezeigt wird, prüfen Sie bitte folgende Punkte:
 
@@ -76,12 +87,13 @@ Berechtigungen: Stellen Sie sicher, dass das Skript mit sudo ausgeführt wurde.
 
 PHP-FPM: Überprüfen Sie, ob der PHP-Dienst korrekt läuft (ersetzen Sie 8.4 durch Ihre installierte Version):
 
-Bash
-
+```bash
 sudo systemctl status php8.4-fpm
+```
 Nginx Logs: Prüfen Sie die Webserver-Fehlerprotokolle:
 
-Bash
-
+```bash
 sudo tail -f /var/log/nginx/error.log
+```
+
 Wenn Sie einen der erweiterten Schritte wie den Health Check oder die Performance-Optimierung benötigen, teilen Sie mir dies bitte mit!
