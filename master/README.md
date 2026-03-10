@@ -1,61 +1,100 @@
-📟 Perry-NAS: Pip-Boy Terminal & System Management
-Ein stylisches, Fallout-inspiriertes Management-System für den Raspberry Pi 5 unter Debian 13. Dieses Projekt verwandelt dein NAS in ein sich selbst wartendes Terminal mit Echtzeit-Überwachung und automatisierter Datensicherheit.
+# 📟 PERRY-NAS: Ultimate Pip-Boy Management Suite
 
-🌟 Features
-Pip-Boy Dashboard: Ein monochrom-grünes Web-Interface zur Überwachung von CPU-Last, Temperatur, RAM und Speicherplatz.
+Dieses Projekt verwandelt einen **Raspberry Pi 5** unter **Debian 13 (Trixie)** in ein hochautomatisiertes NAS-System. Es kombiniert ein Fallout-inspiriertes Web-Interface mit professionellen Monitoring- und Backup-Tools.
 
-Dual-Disk Monitoring: Volle Unterstützung für zwei Festplatten inklusive SMART-Health-Status ("PASSED" oder "FAILED").
+---
 
-Automatisierte Sicherheit:
+## 📑 Inhaltsverzeichnis
+1. [Features](#-features)
+2. [Hardware-Setup](#-hardware-setup)
+3. [Installation](#-installation)
+4. [E-Mail Konfiguration (Gmail/msmtp)](#-e-mail-konfiguration)
+5. [Automatisierung (Cronjobs)](#-automatisierung)
+6. [SMART Monitoring](#-smart-monitoring)
 
-Backups: Nächtliche Spiegelung von Disk 1 auf Disk 2 via rsync.
+---
 
-Updates: Wöchentliche System-Updates (apt-get upgrade) ohne Benutzereingriff.
+## 🌟 Features
 
-Reports: Wöchentlicher Statusbericht per E-Mail inklusive einer Liste aller aktualisierten Pakete.
+* **Pip-Boy Dashboard:** Echtzeit-Visualisierung von CPU (Last/Temp), RAM und Disk-Usage.
+* **Smart-Health-Check:** Sofortige Statusanzeige (OK/BAD) basierend auf SMART-Werten.
+* **Inkrementelles Backup:** Nächtliche Spiegelung von Disk 1 auf Disk 2 via `rsync`.
+* **Stable CLI Updates:** Wöchentliche System-Updates mit dem stabilen `apt-get` Interface.
+* **Kombinierter Wochenbericht:** E-Mail-Report jeden Montag mit Hardware-Status und Update-Liste.
 
-Hardware-Wartung: Regelmäßige SMART-Selbsttests der Festplatten im Hintergrund.
+---
 
-🛠 Installation
-Repository klonen:
+## 🔌 Hardware-Setup
 
-Bash
+* **Host:** Raspberry Pi 5
+* **OS:** Debian 13 (Trixie)
+* **Mount-Points:**
+    * `/mnt/perry-nas` (Erste Festplatte / sda)
+    * `/mnt/perry-nas-2` (Zweite Festplatte / sdb)
 
-git clone https://github.com/DEIN_USERNAME/perry-nas.git
+---
+
+## 🛠 Installation
+
+### 1. Repository klonen
+```bash
+git clone [https://github.com/DEIN_USERNAME/perry-nas.git](https://github.com/DEIN_USERNAME/perry-nas.git)
 cd perry-nas
-Installer ausführen:
-Das mitgelieferte Master-Skript installiert alle Abhängigkeiten (Nginx, PHP, Smartmontools, msmtp) und konfiguriert das System automatisch.
+```
+### 2. Master-Installer ausführen
+Das Skript installiert Nginx, PHP, Smartmontools, rsync und msmtp.Bash sudo bash install_perry_nas.sh
 
-Bash
+## 📧 E-Mail Konfiguration
+Um Berichte zu empfangen, wird msmtp genutzt.
+1. Gmail vorbereitenAktiviere 2-Faktor-Authentisierung in deinem Google-Konto.Erstelle ein App-Passwort (Sicherheit -> App-Passwörter). 
 
-sudo bash install_perry_nas.sh
-E-Mail-Versand einrichten:
-Damit die Reports verschickt werden können, musst du deine E-Mail-Daten in /etc/msmtprc hinterlegen.
+Notiere den 16-stelligen Code.
 
-📊 Dashboard Ansicht
-Das Dashboard ist nach der Installation über die IP-Adresse deines Raspberry Pi erreichbar (z.B. http://192.168.178.50).
+2. msmtp konfigurieren
+Erstelle oder bearbeite die Datei 
 
-CPU: Auslastung & aktuelle Temperatur des Pi 5.
+/etc/msmtprc:
+```bash
+sudo nano /etc/msmtprc
+```
+inhalt
+```bash
+auth           on
+tls            on
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+logfile        /var/log/msmtp.log
 
-Storage: Belegter Speicherplatz beider Platten.
+account        default
+host           smtp.gmail.com
+port           587
+from           DEINE_EMAIL@gmail.com
+user           DEINE_EMAIL@gmail.com
+password       DEIN_16_STELLIGES_APP_PASSWORT
+```
+## 3. Berechtigungen setzen
+```bash
+sudo chmod 600 /etc/msmtprc
+sudo chown www-data:www-data /etc/msmtprc
+```
+⏰ AutomatisierungDie Zeitpläne sind in ```bash/etc/cron.d/perry_nas ```definiert:
 
-Health: Live-Abfrage der SMART-Werte. Wenn eine Platte stirbt, wird die Anzeige ROT.
+> Uhrzeit--Tag----Skript-------------Funktion
+02:00,Täglich,nas_backup.sh,Spiegelung Disk 1 -> Disk 2
+04:00,Montag,nas_update.sh,System-Updates (apt-get)
+08:00,Montag,nas_report.sh,Versand des Wochenberichts
 
-Backup: Datum und Uhrzeit des letzten erfolgreichen Backups.
 
-📂 Dateistruktur
-/var/www/html/ - Die Weboberfläche (PHP/JS).
+## 🔍 SMART Monitoring
+Das System überwacht kritische Festplatten-Fehler. Ein "vertretbarer" Fehlerwert ist bei den folgenden IDs immer 0:
+## ID 5 (Reallocated Sectors): Defekte Sektoren, die ersetzt wurden.
+## ID 197 (Current Pending Sectors): Instabile Sektoren.
+## ID 198 (Offline Uncorrectable): Schwere Oberflächenschäden.
+Sobald ein Wert > 0 erkannt wird, markiert das Dashboard die entsprechende Platte als BAD.
 
-/usr/local/bin/ - Die Management-Skripte für Backup, Update und Reporting.
-
-/etc/cron.d/perry_nas - Die Zeitpläne für alle automatisierten Aufgaben.
-
-⚠️ Voraussetzungen
-Hardware: Raspberry Pi 5 (oder 4).
-
-OS: Debian 13 / Raspberry Pi OS (Bookworm/Trixie).
-
-Speicher: Zwei gemountete Festplatten unter /mnt/perry-nas und /mnt/perry-nas-2.
-
-🤝 Mitwirken
-Hast du Ideen für neue Pip-Boy-Widgets? Erstelle gerne einen Pull-Request oder öffne ein Issue!
+## 📂 Projekt-Struktur im Repo
+- ```install_perry_nas.sh```: Der Master-Installer.
+- ```index.php```: Pip-Boy Web-Frontend.
+- ```data.php```: Backend API (liefert JSON-Daten).
+- ```nas_backup.sh```: Backup-Logik.
+- ```nas_update.sh```: Update-Logik (CLI Stable).
+- ```nas_report.sh```: E-Mail-Generator.
