@@ -78,11 +78,12 @@ sudo chown www-data:www-data /etc/msmtprc
 ```
 ⏰ AutomatisierungDie Zeitpläne sind in ```bash/etc/cron.d/perry_nas ```definiert:
 
-> Uhrzeit--Tag----Skript-------------Funktion >
+> Uhrzeit--Tag----Skript-------------Funktion
+> 
 02:00,Täglich,nas_backup.sh,Spiegelung Disk 1 -> Disk 2
 > 
 04:00,Montag,nas_update.sh,System-Updates (apt-get)
-
+>
 08:00,Montag,nas_report.sh,Versand des Wochenberichts
 
 
