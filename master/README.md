@@ -38,7 +38,7 @@ Dieses Projekt verwandelt einen **Raspberry Pi 5** unter **Debian 13 (Trixie)** 
 
 ### 1. Repository klonen
 ```bash
-git clone [https://github.com/DEIN_USERNAME/perry-nas.git](https://github.com/DEIN_USERNAME/perry-nas.git)
+git clone https://github.com/RamonWeb/perry-nas.git
 cd perry-nas
 ```
 ### 2. Master-Installer ausführen
