@@ -76,7 +76,11 @@ password       DEIN_16_STELLIGES_APP_PASSWORT
 sudo chmod 600 /etc/msmtprc
 sudo chown www-data:www-data /etc/msmtprc
 ```
-⏰ AutomatisierungDie Zeitpläne sind in ```bash/etc/cron.d/perry_nas ```definiert:
+⏰ AutomatisierungDie Zeitpläne sind in
+```bash
+/etc/cron.d/perry_nas
+```
+definiert:
 
 > Uhrzeit--Tag----Skript-------------Funktion
 > 
