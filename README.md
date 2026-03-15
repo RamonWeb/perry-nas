@@ -342,6 +342,14 @@ sudo mdadm --create /dev/md0 --level=1 --raid-devices=2 /dev/sda1 /dev/sdb1
 - **Nextcloud** - Cloud-Speicher
 - **Pi-hole** - Netzwerk-Werbeblocker
 
+## Dokumentation der Module
+
+Hier findest du die Details zu den einzelnen Tools:
+
+* 📂 **Admin:** [Anleitung öffnen](Admin/README.md)
+* 📂 **Master:** [Anleitung öffnen](master/README.md)
+* 📂 **Update:** [Anleitung öffnen](update/README.md)
+
 ## 🤝 Beitragen
 
 Da Perry-NAS ein spezielles Hardware-Setup verwendet, sind Erfahrungsberichte besonders wertvoll!
